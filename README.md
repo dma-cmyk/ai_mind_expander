@@ -1,6 +1,6 @@
 # AI Mind Expander
 
-[![Demo](demo.gif)](demo.gif)
+![Demo](demo.gif)
 
 AI Mind Expander は、AI (OpenAI / Google Gemini) の力を借りて、無限のキャンバス上でアイデアを視覚的に拡張・深掘りしていくためのブレインストーミングツールです。
 
