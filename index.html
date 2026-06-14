@@ -1752,14 +1752,19 @@ ${purposeContext}
                 recognition.interimResults = false;
                 recognition.maxAlternatives = 1;
 
+                let isAIProcessing = false;
+
                 const resetVoiceIcon = () => {
                     isRecording = false;
-                    els.voiceIcon.className = 'fa-solid fa-microphone text-lg transition-all';
-                    els.btnVoiceInput.classList.remove('animate-pulse', 'bg-rose-50');
+                    if (!isAIProcessing) {
+                        els.voiceIcon.className = 'fa-solid fa-microphone text-lg transition-all';
+                        els.btnVoiceInput.classList.remove('animate-pulse', 'bg-rose-50');
+                    }
                 };
 
                 recognition.onstart = function() {
                     isRecording = true;
+                    isAIProcessing = false;
                     els.voiceIcon.className = 'fa-solid fa-microphone-lines text-rose-500 text-lg transition-all';
                     els.btnVoiceInput.classList.add('animate-pulse', 'bg-rose-50');
                     els.initialWordInput.placeholder = "音声を聞き取っています...";
@@ -1767,19 +1772,21 @@ ${purposeContext}
                 };
 
                 recognition.onresult = async function(event) {
+                    isRecording = false;
+                    isAIProcessing = true;
                     const rawTranscript = event.results[0][0].transcript;
                     els.initialWordInput.placeholder = "AIが音声を整形中...";
-                    els.voiceIcon.className = 'fa-solid fa-spinner fa-spin text-zinc-400 text-lg transition-all';
+                    els.voiceIcon.className = 'fa-solid fa-spinner fa-spin text-zinc-500 text-lg transition-all';
                     els.btnVoiceInput.classList.remove('animate-pulse', 'bg-rose-50');
                     
                     try {
                         const cleanText = await cleanupVoiceTextWithAI(rawTranscript);
                         els.initialWordInput.value = cleanText;
-                        els.initialWordInput.placeholder = "何を広げますか？（テーマ）";
                     } catch (e) {
                         els.initialWordInput.value = rawTranscript;
-                        els.initialWordInput.placeholder = "何を広げますか？（テーマ）";
                     } finally {
+                        isAIProcessing = false;
+                        els.initialWordInput.placeholder = "何を広げますか？（テーマ）";
                         els.initialWordInput.style.height = 'auto';
                         els.initialWordInput.style.height = els.initialWordInput.scrollHeight + 'px';
                         resetVoiceIcon();
@@ -1789,6 +1796,7 @@ ${purposeContext}
 
                 recognition.onerror = function(event) {
                     console.error("Speech recognition error", event.error);
+                    isAIProcessing = false;
                     resetVoiceIcon();
                     els.initialWordInput.placeholder = "何を広げますか？（テーマ）";
                 };
