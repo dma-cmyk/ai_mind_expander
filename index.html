@@ -1266,15 +1266,24 @@ ${purposeContext}
             if (!textSpan || state.isGenerating) return;
 
             const originalText = node.text;
-            const input = document.createElement('input');
-            input.type = 'text';
+            const input = document.createElement('textarea');
             input.value = originalText;
-            input.className = "w-full bg-transparent text-center text-xs text-zinc-800 dark:text-zinc-100 border-none focus:outline-none focus:ring-0 py-0.5";
+            input.className = "w-full bg-transparent text-center text-xs text-zinc-800 dark:text-zinc-100 border-none focus:outline-none focus:ring-0 py-0.5 resize-none overflow-hidden leading-relaxed";
             
             textSpan.innerHTML = '';
             textSpan.appendChild(input);
+            
+            // Auto resize
+            input.style.height = 'auto';
+            input.style.height = input.scrollHeight + 'px';
+            input.addEventListener('input', () => {
+                input.style.height = 'auto';
+                input.style.height = input.scrollHeight + 'px';
+            });
+
             input.focus();
-            input.select();
+            // カーソルを末尾へ
+            input.selectionStart = input.selectionEnd = input.value.length;
 
             let isFinished = false;
 
@@ -1289,7 +1298,8 @@ ${purposeContext}
             };
 
             input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
                     finishEdit();
                 } else if (e.key === 'Escape') {
                     input.value = originalText;
