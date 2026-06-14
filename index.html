@@ -1213,8 +1213,8 @@ ${purposeContext}
                         </button>
                     ` : ''}
                     ${node.expanded && node.children.length > 0 ? `
-                        <button onclick="event.stopPropagation(); regenerateChildrenNodes('${id}')" title="ここから伸びる枝（子ノード）を再生成" class="hover:text-zinc-400 transition-colors px-1 py-0.5 border-l border-zinc-800 pl-2">
-                            <i class="fa-solid fa-arrows-rotate"></i>
+                        <button onclick="event.stopPropagation(); regenerateChildrenNodes('${id}')" title="ここから伸びる枝（子ノード全体）を再編・再生成" class="hover:text-zinc-400 transition-colors px-1 py-0.5 border-l border-zinc-800 pl-2">
+                            <i class="fa-solid fa-arrows-spin text-emerald-300"></i>
                         </button>
                     ` : ''}
                 </div>
@@ -1367,16 +1367,56 @@ ${purposeContext}
             const node = state.nodes[id];
             if (state.isGenerating || !node.expanded || node.children.length === 0) return;
 
-            const childrenToRemove = [...node.children];
-            childrenToRemove.forEach(childId => {
-                removeNodeAndDescendants(childId);
+            state.isGenerating = true;
+
+            // まず、孫ノード（子ノードの子孫）は意味が合わなくなるので削除する
+            node.children.forEach(childId => {
+                const childNode = state.nodes[childId];
+                if (childNode.children && childNode.children.length > 0) {
+                    const grandChildren = [...childNode.children];
+                    grandChildren.forEach(gcId => {
+                        removeNodeAndDescendants(gcId);
+                    });
+                    childNode.children = [];
+                    childNode.expanded = false;
+                }
             });
 
-            node.children = [];
-            node.expanded = false;
+            // 子ノードをUI上でローディング状態にする
+            node.children.forEach(childId => {
+                const el = document.getElementById(childId);
+                if (el) el.classList.add('opacity-30');
+                const textSpan = document.getElementById(`text_${childId}`);
+                if (textSpan) textSpan.innerHTML = `<span class="text-zinc-400 italic flex items-center justify-center gap-1.5"><i class="fa-solid fa-spinner animate-spin"></i>再編中...</span>`;
+            });
 
-            await expandNodeWithAI(id);
-            drawConnections();
+            const parentContext = node.parentId ? state.nodes[node.parentId].text : '';
+            const currentTone = els.aiTone.value;
+
+            try {
+                const suggestions = await fetchAIExpansion(node.text, parentContext, currentTone);
+                
+                let sIdx = 0;
+                node.children.forEach(childId => {
+                    const childNode = state.nodes[childId];
+                    const word = suggestions[sIdx] || `「${node.text}」から広がる新たな思考への問い`;
+                    sIdx++;
+                    
+                    childNode.text = word;
+                    
+                    const el = document.getElementById(childId);
+                    if (el) el.classList.remove('opacity-30');
+                    
+                    const textSpan = document.getElementById(`text_${childId}`);
+                    if (textSpan) textSpan.textContent = word;
+                });
+            } catch (error) {
+                console.error("Children regeneration failed", error);
+            } finally {
+                state.isGenerating = false;
+                drawConnections();
+                updatePathDisplay();
+            }
         };
 
         function drawConnections() {
