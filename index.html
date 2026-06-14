@@ -1706,38 +1706,73 @@ ${purposeContext}
                 purposeHistory = [];
             }
             
-            let datalist = document.getElementById('purposeHistoryList');
-            if (!datalist) {
-                datalist = document.createElement('datalist');
-                datalist.id = 'purposeHistoryList';
-                document.body.appendChild(datalist);
-            }
-            
-            function updateDatalist() {
-                datalist.innerHTML = '';
-                purposeHistory.forEach(p => {
-                    const option = document.createElement('option');
-                    option.value = p;
-                    datalist.appendChild(option);
-                });
-            }
-            updateDatalist();
-
             els.displayPurpose.addEventListener('click', (e) => {
                 if (state.isGenerating) return;
                 
                 const currentPurpose = state.purpose;
+                
+                const wrapper = document.createElement('div');
+                wrapper.className = "relative inline-block";
+                
                 const input = document.createElement('input');
                 input.type = 'text';
                 input.value = currentPurpose;
                 input.placeholder = "目的を自由に入力（例：課題解決、企画立案）";
                 input.className = "bg-transparent text-[11px] text-zinc-800 dark:text-zinc-200 border-b border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-400 w-[240px] px-1 py-0";
-                input.setAttribute('list', 'purposeHistoryList');
                 
-                const parent = els.displayPurpose.parentElement;
-                els.displayPurpose.replaceWith(input);
+                const dropdown = document.createElement('div');
+                dropdown.className = "absolute left-0 top-[calc(100%+4px)] w-[280px] max-h-[200px] overflow-y-auto bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded shadow-xl z-50 flex flex-col hidden scrollbar-thin";
+                
+                wrapper.appendChild(input);
+                wrapper.appendChild(dropdown);
+
+                const updateCustomDropdown = (filterText = '') => {
+                    dropdown.innerHTML = '';
+                    const filtered = purposeHistory.filter(p => p.toLowerCase().includes(filterText.toLowerCase()));
+                    if (filtered.length === 0) {
+                        dropdown.classList.add('hidden');
+                        return;
+                    }
+                    dropdown.classList.remove('hidden');
+                    
+                    filtered.forEach((p) => {
+                        const item = document.createElement('div');
+                        item.className = "flex items-center justify-between px-3 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-[11px] text-zinc-800 dark:text-zinc-200 border-b border-zinc-100 dark:border-zinc-800 last:border-b-0";
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.textContent = p;
+                        textSpan.className = "truncate flex-1 pr-2";
+                        
+                        const delBtn = document.createElement('button');
+                        delBtn.innerHTML = '<i class="fa-solid fa-trash-can"></i>';
+                        delBtn.className = "text-zinc-400 hover:text-red-500 px-1.5 py-1 transition-colors rounded opacity-50 hover:opacity-100";
+                        delBtn.title = "履歴から削除";
+                        
+                        delBtn.onclick = (ev) => {
+                            ev.stopPropagation();
+                            purposeHistory = purposeHistory.filter(hist => hist !== p);
+                            localStorage.setItem('mind_expander_purpose_history', JSON.stringify(purposeHistory));
+                            updateCustomDropdown(input.value);
+                            input.focus();
+                        };
+                        
+                        item.onclick = (ev) => {
+                            ev.stopPropagation();
+                            input.value = p;
+                            dropdown.classList.add('hidden');
+                            finishEdit(); 
+                        };
+                        
+                        item.appendChild(textSpan);
+                        item.appendChild(delBtn);
+                        dropdown.appendChild(item);
+                    });
+                };
+
+                els.displayPurpose.replaceWith(wrapper);
                 input.focus();
                 input.select();
+                updateCustomDropdown('');
 
                 let isFinished = false;
 
@@ -1750,27 +1785,33 @@ ${purposeContext}
                     
                     if (newPurpose && !purposeHistory.includes(newPurpose)) {
                         purposeHistory.unshift(newPurpose);
-                        if (purposeHistory.length > 10) purposeHistory.pop();
+                        if (purposeHistory.length > 20) purposeHistory.pop();
                         localStorage.setItem('mind_expander_purpose_history', JSON.stringify(purposeHistory));
-                        updateDatalist();
                     }
                     
                     els.displayPurpose.textContent = state.purpose;
-                    input.replaceWith(els.displayPurpose);
-                    
-                    updatePathDisplay();
+                    wrapper.replaceWith(els.displayPurpose);
+                    document.removeEventListener('mousedown', handleOutsideClick);
                 };
 
+                const handleOutsideClick = (e) => {
+                    if (!wrapper.contains(e.target)) {
+                        finishEdit();
+                    }
+                };
+
+                document.addEventListener('mousedown', handleOutsideClick);
+
+                input.addEventListener('input', () => updateCustomDropdown(input.value));
+                input.addEventListener('focus', () => updateCustomDropdown(input.value));
+                
                 input.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter') {
                         finishEdit();
                     } else if (e.key === 'Escape') {
-                        input.value = currentPurpose;
                         finishEdit();
                     }
                 });
-
-                input.addEventListener('blur', finishEdit);
             });
         }
 
