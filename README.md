@@ -1,7 +1,11 @@
 # AI Mind Expander
 
+## 動作デモ (Demo)
+AIが文脈を読み取って自動で思考の枝を広げていく基本動作の風景です。
 ![Demo](demo.gif)
 
+## 実際の作業画面 (Working Screenshot)
+箇条書きのストーリー表示や自動リサイズされる編集画面など、実際にアイデアを練っている時の画面です。
 ![Screenshot](screenshot.png)
 
 AI Mind Expander は、AI (OpenAI / Google Gemini) の力を借りて、無限のキャンバス上でアイデアを視覚的に拡張・深掘りしていくためのブレインストーミングツールです。
