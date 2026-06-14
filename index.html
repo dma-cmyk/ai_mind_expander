@@ -1326,7 +1326,7 @@ ${purposeContext}
                 let sIdx = 0;
                 siblingsToRemove.forEach(childId => {
                     const siblingNode = state.nodes[childId];
-                    const word = suggestions[sIdx] || \`「\${parentNode.text}」から広がる新たな思考への問い\`;
+                    const word = suggestions[sIdx] || `「${parentNode.text}」から広がる新たな思考への問い`;
                     sIdx++;
                     
                     siblingNode.text = word;
@@ -1640,7 +1640,17 @@ ${purposeContext}
         }
 
         function initPurposeEdit() {
-            let purposeHistory = JSON.parse(localStorage.getItem('mind_expander_purpose_history') || '[]');
+            let purposeHistory = [];
+            try {
+                const historyRaw = localStorage.getItem('mind_expander_purpose_history');
+                if (historyRaw) {
+                    purposeHistory = JSON.parse(historyRaw);
+                    if (!Array.isArray(purposeHistory)) purposeHistory = [];
+                }
+            } catch (e) {
+                console.warn("Could not parse purpose history", e);
+                purposeHistory = [];
+            }
             
             let datalist = document.getElementById('purposeHistoryList');
             if (!datalist) {
