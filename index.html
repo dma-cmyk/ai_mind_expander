@@ -1299,7 +1299,7 @@ ${purposeContext}
                 textSpan.innerHTML = `<span class="text-zinc-400 italic flex items-center justify-center gap-1.5"><i class="fa-solid fa-spinner animate-spin"></i>再編中...</span>`;
             }
 
-            const parentContext = node.parentId ? state.nodes[node.parentId].text : '';
+            const parentContext = node.parentId ? getPathWords(node.parentId).join(' -> ') : '';
             const currentTone = els.aiTone.value;
 
             const newText = await fetchSingleNodeRegeneration(originalText, parentContext, currentTone);
@@ -1329,7 +1329,7 @@ ${purposeContext}
                 if (textSpan) textSpan.innerHTML = `<span class="text-zinc-400 italic flex items-center justify-center gap-1.5"><i class="fa-solid fa-spinner animate-spin"></i>再編中...</span>`;
             });
 
-            const parentContext = parentNode.parentId ? state.nodes[parentNode.parentId].text : '';
+            const parentContext = parentNode.parentId ? getPathWords(parentNode.parentId).join(' -> ') : '';
             const currentTone = els.aiTone.value;
 
             try {
@@ -1403,7 +1403,7 @@ ${purposeContext}
                 if (textSpan) textSpan.innerHTML = `<span class="text-zinc-400 italic flex items-center justify-center gap-1.5"><i class="fa-solid fa-spinner animate-spin"></i>再編中...</span>`;
             });
 
-            const parentContext = node.parentId ? state.nodes[node.parentId].text : '';
+            const parentContext = node.parentId ? getPathWords(node.parentId).join(' -> ') : '';
             const currentTone = els.aiTone.value;
 
             try {
@@ -1555,7 +1555,7 @@ ${purposeContext}
             }
             drawConnections();
 
-            const parentContext = node.parentId ? state.nodes[node.parentId].text : '';
+            const parentContext = node.parentId ? getPathWords(node.parentId).join(' -> ') : '';
             const currentTone = els.aiTone.value;
 
             try {
@@ -1588,15 +1588,19 @@ ${purposeContext}
             }
         }
 
-        function getActivePathWords() {
-            if (!state.selectedNodeId) return [];
+        function getPathWords(nodeId) {
+            if (!nodeId) return [];
             const words = [];
-            let currentId = state.selectedNodeId;
+            let currentId = nodeId;
             while (currentId) {
                 words.unshift(state.nodes[currentId].text);
                 currentId = state.nodes[currentId].parentId;
             }
             return words;
+        }
+
+        function getActivePathWords() {
+            return getPathWords(state.selectedNodeId);
         }
 
         function updatePathDisplay() {
