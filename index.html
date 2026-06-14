@@ -1649,14 +1649,12 @@ ${purposeContext}
                 formattedText += `【目的：${state.purpose}】\n`;
             }
 
-            formattedText += words.map(word => {
+            formattedText += words.map((word, index) => {
                 const trimmed = word.trim();
                 if (!trimmed) return '';
-                if (/[。？！?!]$/.test(trimmed)) {
-                    return trimmed;
-                }
-                return trimmed + '。';
-            }).join(' ');
+                const indent = "  ".repeat(index);
+                return `${indent}- ${trimmed}`;
+            }).join('\n');
 
             els.storyTextarea.value = formattedText;
         }
