@@ -1207,6 +1207,11 @@ ${purposeContext}
                     <button onclick="event.stopPropagation(); regenerateSingleNode('${id}')" title="この文章をAIで再生成" class="hover:text-zinc-400 transition-colors px-1 py-0.5 border-l border-zinc-800 pl-2">
                         <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
                     </button>
+                    ${node.parentId ? `
+                        <button onclick="event.stopPropagation(); regenerateSiblings('${id}')" title="このアイデアを残し、他の兄弟アイデアを再生成" class="hover:text-zinc-400 transition-colors px-1 py-0.5 border-l border-zinc-800 pl-2">
+                            <i class="fa-solid fa-arrows-spin text-sky-300"></i>
+                        </button>
+                    ` : ''}
                     ${node.expanded && node.children.length > 0 ? `
                         <button onclick="event.stopPropagation(); regenerateChildrenNodes('${id}')" title="ここから伸びる枝（子ノード）を再生成" class="hover:text-zinc-400 transition-colors px-1 py-0.5 border-l border-zinc-800 pl-2">
                             <i class="fa-solid fa-arrows-rotate"></i>
@@ -1294,6 +1299,51 @@ ${purposeContext}
 
             state.isGenerating = false;
             updatePathDisplay();
+        };
+
+        window.regenerateSiblings = async function(id) {
+            const node = state.nodes[id];
+            if (state.isGenerating || !node.parentId) return;
+
+            const parentNode = state.nodes[node.parentId];
+            state.isGenerating = true;
+
+            const siblingsToRemove = parentNode.children.filter(childId => childId !== id);
+            
+            siblingsToRemove.forEach(childId => {
+                const el = document.getElementById(childId);
+                if (el) el.classList.add('opacity-30');
+                const textSpan = document.getElementById(`text_${childId}`);
+                if (textSpan) textSpan.innerHTML = `<span class="text-zinc-400 italic flex items-center justify-center gap-1.5"><i class="fa-solid fa-spinner animate-spin"></i>再編中...</span>`;
+            });
+
+            const parentContext = parentNode.parentId ? state.nodes[parentNode.parentId].text : '';
+            const currentTone = els.aiTone.value;
+
+            try {
+                const suggestions = await fetchAIExpansion(parentNode.text, parentContext, currentTone);
+                
+                let sIdx = 0;
+                siblingsToRemove.forEach(childId => {
+                    const siblingNode = state.nodes[childId];
+                    const word = suggestions[sIdx] || \`「\${parentNode.text}」から広がる新たな思考への問い\`;
+                    sIdx++;
+                    
+                    siblingNode.text = word;
+                    
+                    const el = document.getElementById(childId);
+                    if (el) el.classList.remove('opacity-30');
+                    
+                    const textSpan = document.getElementById(`text_${childId}`);
+                    if (textSpan) textSpan.textContent = word;
+                });
+            } catch (error) {
+                console.error("Sibling regeneration failed", error);
+            } finally {
+                state.isGenerating = false;
+                drawConnections();
+                updatePathDisplay();
+            }
         };
 
         function removeNodeAndDescendants(nodeId) {
@@ -1590,6 +1640,25 @@ ${purposeContext}
         }
 
         function initPurposeEdit() {
+            let purposeHistory = JSON.parse(localStorage.getItem('mind_expander_purpose_history') || '[]');
+            
+            let datalist = document.getElementById('purposeHistoryList');
+            if (!datalist) {
+                datalist = document.createElement('datalist');
+                datalist.id = 'purposeHistoryList';
+                document.body.appendChild(datalist);
+            }
+            
+            function updateDatalist() {
+                datalist.innerHTML = '';
+                purposeHistory.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p;
+                    datalist.appendChild(option);
+                });
+            }
+            updateDatalist();
+
             els.displayPurpose.addEventListener('click', (e) => {
                 if (state.isGenerating) return;
                 
@@ -1599,6 +1668,7 @@ ${purposeContext}
                 input.value = currentPurpose;
                 input.placeholder = "目的を自由に入力（例：課題解決、企画立案）";
                 input.className = "bg-transparent text-[11px] text-zinc-800 dark:text-zinc-200 border-b border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-400 w-[240px] px-1 py-0";
+                input.setAttribute('list', 'purposeHistoryList');
                 
                 const parent = els.displayPurpose.parentElement;
                 els.displayPurpose.replaceWith(input);
@@ -1613,6 +1683,13 @@ ${purposeContext}
                     
                     const newPurpose = input.value.trim();
                     state.purpose = newPurpose || "AIにお願いするための文章の続き考えてください。";
+                    
+                    if (newPurpose && !purposeHistory.includes(newPurpose)) {
+                        purposeHistory.unshift(newPurpose);
+                        if (purposeHistory.length > 10) purposeHistory.pop();
+                        localStorage.setItem('mind_expander_purpose_history', JSON.stringify(purposeHistory));
+                        updateDatalist();
+                    }
                     
                     els.displayPurpose.textContent = state.purpose;
                     input.replaceWith(els.displayPurpose);
