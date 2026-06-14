@@ -1,0 +1,1923 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Mind-Expander | Minimal Idea Network</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Inter & Noto Sans JP for premium look) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans JP', sans-serif;
+            overflow: hidden;
+        }
+        /* キャンバスドラッグ時のカーソル操作 */
+        .canvas-container {
+            user-select: none;
+            cursor: grab;
+        }
+        .canvas-container:active {
+            cursor: grabbing;
+        }
+        /* アクティブな接続線の流れるアニメーション（視認性を高めた破線パターン） */
+        .node-connection {
+            stroke-dasharray: 6 6;
+            animation: dash 25s linear infinite;
+        }
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -1000;
+            }
+        }
+        /* カスタムスクロールバー（極薄） */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #fafafa;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e4e4e7;
+            border-radius: 2px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #d4d4d8;
+        }
+        /* ダークモード用スクロールバー */
+        .dark ::-webkit-scrollbar-track {
+            background: #18181b;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #3f3f46;
+        }
+        .dark ::-webkit-scrollbar-thumb:hover {
+            background: #52525b;
+        }
+        /* 横スクロールバーを非表示にする（パンくずリスト用） */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        /* 静かなフェードインアニメーション */
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -40%) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+    </style>
+</head>
+<body class="w-screen h-screen flex flex-col justify-between bg-[#fafafa] dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors duration-300">
+
+    <!-- ヘッダー / ミニマル・タイトル -->
+    <header class="absolute top-0 left-0 right-0 z-30 pointer-events-none p-8 flex justify-between items-start">
+        <div class="pointer-events-auto flex flex-col gap-1">
+            <h1 class="text-sm font-semibold tracking-wider text-zinc-900 dark:text-zinc-100">AI Mind-Expander</h1>
+            <!-- 目的の表示・即時編集エリア -->
+            <div class="flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500">
+                <span>Goal:</span>
+                <span id="displayPurpose" class="text-zinc-600 dark:text-zinc-400 font-medium underline underline-offset-4 decoration-zinc-300 dark:decoration-zinc-700 hover:text-zinc-950 dark:hover:text-zinc-200 cursor-pointer transition-colors max-w-[200px] md:max-w-[400px] truncate" title="クリックして目的を変更">
+                    AIにお願いするための文章の続き考えてください。
+                </span>
+            </div>
+        </div>
+
+        <!-- ツールパネル（右上・ミニマル配置） -->
+        <div class="pointer-events-auto flex items-center gap-4">
+            <!-- 発想トーン選択 -->
+            <div class="flex items-center gap-2 text-xs border-b border-zinc-200 dark:border-zinc-800 pb-0.5">
+                <span class="text-zinc-400 dark:text-zinc-500">Tone:</span>
+                <select id="aiTone" class="bg-transparent text-zinc-800 dark:text-zinc-200 font-medium focus:outline-none cursor-pointer pr-1 [&>option]:text-zinc-800 max-w-[120px] truncate">
+                    <!-- JSで動的生成 -->
+                </select>
+                <button id="btnOpenToneSettings" title="Toneの編集・追加" class="text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 transition-colors ml-1">
+                    <i class="fa-solid fa-gear text-[10px]"></i>
+                </button>
+            </div>
+            
+            <!-- APIモデル情報表示 & 設定ボタン -->
+            <div class="flex items-center gap-1 border-l border-zinc-200 dark:border-zinc-800 pl-3">
+                <button id="btnToggleTheme" title="テーマ切り替え" class="w-7 h-7 text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 flex items-center justify-center transition-colors">
+                    <i id="themeIcon" class="fa-solid fa-moon text-xs"></i>
+                </button>
+                <button id="btnOpenSettings" title="API・モデル設定" class="w-7 h-7 text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 flex items-center justify-center transition-colors relative">
+                    <i class="fa-solid fa-sliders text-xs"></i>
+                    <!-- キー未設定時のインジケータ -->
+                    <span id="apiKeyWarningBadge" class="absolute top-1 right-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-ping hidden"></span>
+                </button>
+                <button id="btnRecenter" title="中央に戻す" class="w-7 h-7 text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100 flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-compress text-xs"></i>
+                </button>
+                <button id="btnReset" title="最初からやり直す" class="w-7 h-7 text-zinc-300 hover:text-zinc-950 dark:text-zinc-600 dark:hover:text-zinc-200 flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-arrow-rotate-left text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 操作ヘルプ（左下・シンプル） -->
+    <div class="absolute bottom-24 left-8 z-20 pointer-events-none text-[10px] text-zinc-400 dark:text-zinc-600 flex flex-col gap-1 font-mono">
+        <div>• ドラッグで移動</div>
+        <div>• スクロールで拡縮</div>
+        <div>• クリックでアイデアを展開</div>
+        <div id="statusActiveModel" class="text-zinc-500 dark:text-zinc-400 mt-2 font-sans text-[11px] normal-case bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-sm inline-block self-start transition-colors">Active: 未設定</div>
+    </div>
+
+    <!-- メインキャンバス領域 (全画面) -->
+    <main class="relative flex-1 w-full h-full overflow-hidden canvas-container" id="canvasContainer">
+        <!-- 背景（白に極薄の細いドットグリッドパターン） -->
+        <div class="absolute inset-0 pointer-events-none bg-[radial-gradient(#e4e4e7_1px,transparent_1px)] dark:bg-[radial-gradient(#27272a_1px,transparent_1px)] bg-[size:24px_24px] opacity-60 transition-colors duration-300"></div>
+        
+        <!-- 動的コンテンツ(パン・ズーム対象) -->
+        <div id="canvasContent" class="absolute inset-0 origin-center transition-transform duration-75 ease-out" style="transform: translate(0px, 0px) scale(1);">
+            
+            <!-- SVG接続線レイヤー -->
+            <svg id="svgConnections" class="absolute inset-0 pointer-events-none w-[10000px] h-[10000px]" style="transform: translate(-5000px, -5000px);"></svg>
+            
+            <!-- ノード配置レイヤー -->
+            <div id="nodesLayer" class="absolute inset-0"></div>
+            
+        </div>
+        
+        <!-- 初期入力画面 (1ステップ・ミニマルインプット) -->
+        <div id="initialInputOverlay" class="absolute inset-0 z-10 flex items-center justify-center bg-[#fafafa] dark:bg-zinc-950 transition-all duration-700 ease-in-out">
+            <div class="max-w-xl w-full mx-6 flex flex-col items-center gap-6">
+                
+                <!-- テーマの入力欄 -->
+                <div class="w-full relative flex flex-col items-center">
+                    <div class="relative w-full flex items-center justify-center group">
+                        <textarea id="initialWordInput" placeholder="何を広げますか？（テーマ）" autofocus autocomplete="off" rows="1"
+                            class="w-full bg-transparent text-zinc-900 dark:text-zinc-100 text-2xl md:text-3xl font-light text-center placeholder-zinc-300 dark:placeholder-zinc-700 border-none focus:outline-none focus:ring-0 py-1 transition-all pr-12 pl-12 resize-none overflow-hidden min-h-[48px]"></textarea>
+                        <button id="btnVoiceInput" class="absolute right-0 md:right-4 top-1/2 -translate-y-1/2 w-10 h-10 text-zinc-300 dark:text-zinc-600 hover:text-zinc-700 dark:hover:text-zinc-300 flex items-center justify-center transition-all rounded-full focus:outline-none z-20 bg-white/50 dark:bg-zinc-800/50 hover:bg-white dark:hover:bg-zinc-800 shadow-sm hover:shadow" title="音声で入力">
+                            <i id="voiceIcon" class="fa-solid fa-microphone text-lg transition-all"></i>
+                        </button>
+                    </div>
+                    <div class="w-24 h-[1px] bg-zinc-300 dark:bg-zinc-700 mx-auto transition-all duration-500 mt-2" id="inputUnderline"></div>
+                </div>
+                
+                <p class="text-[11px] text-zinc-400 dark:text-zinc-500 font-light text-center tracking-wider" id="inputHint">
+                    言葉を入力して [ Enter ] を押してください（Shift + Enterで改行）
+                </p>
+                <p id="initialSetupPrompt" class="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-lg px-4 py-2.5 hidden text-center max-w-sm">
+                    <i class="fa-solid fa-triangle-exclamation mr-1.5 animate-bounce"></i>
+                    AIを使用するには、まず右上の設定ボタンから APIキーを設定してください。
+                </p>
+            </div>
+        </div>
+    </main>
+
+    <!-- API・モデル 設定モーダル -->
+    <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 dark:bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300">
+        <div class="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md w-full max-w-md mx-4 p-6 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col gap-5">
+            <div class="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
+                <h3 class="text-sm font-semibold tracking-wider text-zinc-950 dark:text-zinc-100 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-zinc-500 dark:text-zinc-400"></i>
+                    <span>AI API & MODEL SETTINGS</span>
+                </h3>
+                <button id="btnCloseSettings" class="text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <!-- プロバイダー選択 -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 tracking-wider">PROVIDER</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="providerGemini" class="py-2 text-xs font-medium rounded border border-zinc-900 bg-zinc-900 text-white dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 transition-colors">Gemini (公式)</button>
+                    <button id="providerOpenAI" class="py-2 text-xs font-medium rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors">OpenAI互換</button>
+                </div>
+            </div>
+
+            <!-- エンドポイント (OpenAI互換用) -->
+            <div id="endpointContainer" class="flex flex-col gap-1.5 hidden transition-all">
+                <label class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 tracking-wider">ENDPOINT URL</label>
+                <input type="text" id="apiEndpoint" placeholder="https://api.openai.com/v1" class="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-3 py-2.5 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-500 text-zinc-900 dark:text-zinc-100 transition-colors font-mono">
+            </div>
+
+            <!-- APIキー -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 tracking-wider">API KEY</label>
+                <div class="relative">
+                    <input type="password" id="apiKey" placeholder="キーを入力" class="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded pl-3 pr-10 py-2.5 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-500 text-zinc-900 dark:text-zinc-100 transition-colors font-mono">
+                    <button id="btnToggleKeyVisibility" class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100">
+                        <i class="fa-solid fa-eye text-xs" id="eyeIcon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- モデル選択セクション -->
+            <div class="flex flex-col gap-1.5 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+                <div class="flex justify-between items-center">
+                    <label class="text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 tracking-wider">SELECT MODEL</label>
+                    <button id="btnFetchModels" class="text-[10px] text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100 font-medium underline underline-offset-2 flex items-center gap-1">
+                        <i class="fa-solid fa-rotate text-[8px]" id="fetchModelsSpinner"></i>
+                        <span>モデルリストを取得</span>
+                    </button>
+                </div>
+
+                <!-- リアルタイムフィルタリング検索 -->
+                <div class="relative mt-1">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 text-[10px]">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" id="modelSearchInput" placeholder="モデル名でフィルタリング（部分一致）" class="w-full text-[11px] bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded pl-8 pr-3 py-2 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-500 text-zinc-900 dark:text-zinc-100 transition-colors">
+                </div>
+
+                <!-- ドロップダウン -->
+                <select id="modelSelect" class="w-full text-xs bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded px-3 py-2.5 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-500 text-zinc-900 dark:text-zinc-100 transition-colors mt-1.5">
+                    <option value="" disabled selected>APIキーを入力してモデルを取得してください</option>
+                </select>
+            </div>
+
+            <div class="flex gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4 mt-1">
+                <button id="btnSaveSettings" class="flex-1 py-2.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 text-xs font-semibold rounded transition-colors shadow">
+                    設定を保存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- トーン設定モーダル -->
+    <div id="toneSettingsModal" class="fixed inset-0 z-[55] flex items-center justify-center bg-black/30 dark:bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-all duration-300">
+        <div class="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md w-full max-w-2xl mx-4 p-6 rounded-lg border border-zinc-200 dark:border-zinc-800 shadow-2xl flex flex-col gap-5 max-h-[85vh]">
+            <div class="flex justify-between items-center border-b border-zinc-100 dark:border-zinc-800 pb-3">
+                <h3 class="text-sm font-semibold tracking-wider text-zinc-950 dark:text-zinc-100 flex items-center gap-2">
+                    <i class="fa-solid fa-masks-theater text-zinc-500 dark:text-zinc-400"></i>
+                    <span>TONE SETTINGS</span>
+                </h3>
+                <button id="btnCloseToneSettings" class="text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                    <i class="fa-solid fa-xmark text-sm"></i>
+                </button>
+            </div>
+
+            <div class="overflow-y-auto pr-2 flex-1" id="toneListScrollArea">
+                <div id="toneListContainer" class="flex flex-col gap-4">
+                    <!-- JSで動的に生成 -->
+                </div>
+                
+                <button id="btnAddTone" class="w-full mt-4 py-2 border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-500 dark:hover:border-zinc-500 text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 text-xs font-medium rounded transition-colors flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-plus"></i> 新しいToneを追加
+                </button>
+            </div>
+
+            <div class="flex gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4 mt-1">
+                <button id="btnSaveTones" class="flex-1 py-2.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 text-xs font-semibold rounded transition-colors shadow">
+                    Tone設定を保存
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- エラーメッセージトースト用モーダル -->
+    <div id="errorModal" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 dark:bg-black/50 backdrop-blur-xs opacity-0 pointer-events-none transition-all duration-200">
+        <div class="bg-white dark:bg-zinc-900 border border-rose-100 dark:border-rose-900/50 shadow-2xl p-5 rounded-lg max-w-sm w-full mx-4 flex flex-col gap-3">
+            <h4 class="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5 uppercase tracking-wider">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <span>API Error</span>
+            </h4>
+            <p id="errorModalMessage" class="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed break-words">エラーが発生しました。</p>
+            <button id="btnDismissError" class="self-end px-4 py-1.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 text-[10px] font-semibold rounded tracking-wider">CLOSE</button>
+        </div>
+    </div>
+
+    <!-- 下部：思考パスと統合ストーリートレイ -->
+    <footer id="bottomDrawer" class="relative z-40 bg-[#fafafa] dark:bg-zinc-950 border-t border-zinc-200 dark:border-zinc-800 transition-all duration-300 ease-in-out flex flex-col overflow-hidden" style="height: 52px;">
+        
+        <!-- トレイのつまみ -->
+        <button id="btnToggleDrawer" class="absolute -top-[27px] left-1/2 -translate-x-1/2 h-[28px] px-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 border-b-0 rounded-t-lg shadow-[0_-4px_12px_rgba(0,0,0,0.03)] dark:shadow-[0_-4px_12px_rgba(0,0,0,0.2)] flex items-center justify-center gap-2 cursor-pointer pointer-events-auto transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_-6px_16px_rgba(0,0,0,0.06)] dark:hover:shadow-[0_-6px_16px_rgba(0,0,0,0.3)] group focus:outline-none z-50" title="トレイを開閉">
+            <span class="text-[9px] font-semibold tracking-widest text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 transition-colors select-none uppercase">Story</span>
+            <!-- 動的インジケータ矢印 -->
+            <i id="drawerIndicatorIcon" class="fa-solid fa-chevron-up text-[8px] text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 transition-all duration-300 transform scale-110"></i>
+        </button>
+
+        <!-- 常時露出する上部バー：現在の思考ルート -->
+        <div class="h-[52px] min-h-[52px] px-8 flex items-center cursor-pointer select-none border-b border-transparent transition-colors duration-300" id="selectedPathContainer" title="クリックしてトレイを開閉">
+            <div class="flex items-center gap-3 overflow-x-auto w-full no-scrollbar">
+                <span class="font-medium uppercase tracking-wider text-[10px] text-zinc-500 dark:text-zinc-400 select-none flex-shrink-0">Route:</span>
+                <span id="pathWordsList" class="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-[11px] whitespace-nowrap">
+                    <span class="text-zinc-300 dark:text-zinc-600 italic">キャンバスのフレーズを選択してください</span>
+                </span>
+            </div>
+        </div>
+
+        <!-- メイン文章エリア -->
+        <div id="drawerContent" class="flex-1 px-8 pb-6 flex gap-8 items-stretch min-h-0 opacity-0 pointer-events-none transition-all duration-300 ease-in-out pt-4">
+            <!-- 左側：エディタ -->
+            <div class="flex-1 flex flex-col relative h-full">
+                <textarea id="storyTextarea" 
+                    class="w-full flex-1 bg-transparent text-xs text-zinc-700 dark:text-zinc-200 placeholder-zinc-300 dark:placeholder-zinc-600 focus:outline-none resize-none transition-all h-full leading-relaxed" 
+                    placeholder="選択したフレーズたちをつなぎ合わせた文章が、ここに自動で静かに紡がれていきます。"></textarea>
+                
+                <!-- コピーフィードバック -->
+                <div id="copyFeedback" class="absolute bottom-2 right-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] font-mono px-2 py-1 rounded shadow-sm pointer-events-none opacity-0 transition-opacity duration-300">
+                    COPIED
+                </div>
+            </div>
+
+            <!-- 右側：ミニマル操作 -->
+            <div class="w-48 flex flex-col justify-end gap-2 h-full border-l border-zinc-100 dark:border-zinc-800 pl-6">
+                <button id="btnCopyStory" class="w-full py-2.5 bg-zinc-900 dark:bg-zinc-100 hover:bg-zinc-800 dark:hover:bg-white text-white dark:text-zinc-900 text-xs font-medium rounded transition-colors flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-copy text-[10px]"></i>
+                    <span>文章をコピーする</span>
+                </button>
+                <button id="btnClearStory" class="w-full py-1.5 border border-zinc-200 dark:border-zinc-700 hover:text-zinc-800 dark:hover:text-zinc-200 text-zinc-400 dark:text-zinc-500 text-[10px] font-medium rounded transition-colors">
+                    消去
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        /* ==========================================
+         * 1. アプリケーションステート & 定数定義
+         * ========================================== */
+        function escapeHTML(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+        }
+
+        const state = {
+            nodes: {},          // key: id, value: Node Object
+            connections: [],    // Array of { parentId, childId }
+            selectedNodeId: null, // 現在選ばれているノードID
+            panX: 0,            // キャンバスX移動量
+            panY: 0,            // キャンバスY移動量
+            scale: 1,           // キャンバスズーム倍率
+            isDragging: false,  // ドラッグ中フラグ
+            startX: 0,          // ドラッグ開始時座標
+            startY: 0,
+            nodeCount: 0,       // ID生成用カウンター
+            isGenerating: false, // AI生成中かどうか
+            drawerOpen: false,   // ドロワーが開いているか
+            purpose: "AIにお願いするための文章の続き考えてください。",        // 思考展開の目的
+            
+            // トーン設定
+            tones: [
+                { id: 'creative', name: 'Creative (意外性・遊び心)', prompt: '意外性、ユーモア、斬新、自由な、驚きのある、思考の枠を外す一文' },
+                { id: 'business', name: 'Business (論理・実用)', prompt: '実用的、論理的、市場の隙間、ビジネスモデル、分析的、現実的な一文' },
+                { id: 'poetic', name: 'Poetic (抽象・情緒)', prompt: '抽象的、詩的、情緒、文学的、深い感情、メタファーに満ちた一文' },
+                { id: 'academic', name: 'Academic (知的・分析)', prompt: '知的、分析的、客観的、システム的、学術的な重要視点となる一文' }
+            ],
+            
+            // API接続用ステート (キャッシュを捨てて、毎回動的フェッチに特化)
+            api: {
+                provider: 'gemini',                // 'gemini' or 'openai'
+                endpoint: 'https://api.openai.com/v1', 
+                apiKey: '',
+                selectedModel: '',
+                availableModels: [],               // 最新のモデル一覧
+                isFetched: false
+            }
+        };
+
+        const config = {
+            nodeRadius: 260,    // 展開する枝の基本の長さ(px)
+            childCount: 4,      // 展開する子ノードの数
+            zoomStep: 0.1,      // ズーム倍率の刻み
+            minZoom: 0.2,       // 最小ズーム
+            maxZoom: 2,         // 最大ズーム
+        };
+
+        // DOM要素の参照
+        const els = {
+            canvasContainer: document.getElementById('canvasContainer'),
+            canvasContent: document.getElementById('canvasContent'),
+            svgConnections: document.getElementById('svgConnections'),
+            nodesLayer: document.getElementById('nodesLayer'),
+            initialInputOverlay: document.getElementById('initialInputOverlay'),
+            initialWordInput: document.getElementById('initialWordInput'),
+            btnVoiceInput: document.getElementById('btnVoiceInput'),
+            voiceIcon: document.getElementById('voiceIcon'),
+            initialSetupPrompt: document.getElementById('initialSetupPrompt'),
+            displayPurpose: document.getElementById('displayPurpose'),
+            inputUnderline: document.getElementById('inputUnderline'),
+            inputHint: document.getElementById('inputHint'),
+            statusActiveModel: document.getElementById('statusActiveModel'),
+            btnRecenter: document.getElementById('btnRecenter'),
+            btnReset: document.getElementById('btnReset'),
+            aiTone: document.getElementById('aiTone'),
+            btnOpenToneSettings: document.getElementById('btnOpenToneSettings'),
+            btnToggleTheme: document.getElementById('btnToggleTheme'),
+            themeIcon: document.getElementById('themeIcon'),
+            bottomDrawer: document.getElementById('bottomDrawer'),
+            btnToggleDrawer: document.getElementById('btnToggleDrawer'),
+            selectedPathContainer: document.getElementById('selectedPathContainer'),
+            pathWordsList: document.getElementById('pathWordsList'),
+            storyTextarea: document.getElementById('storyTextarea'),
+            btnCopyStory: document.getElementById('btnCopyStory'),
+            btnClearStory: document.getElementById('btnClearStory'),
+            copyFeedback: document.getElementById('copyFeedback'),
+            drawerContent: document.getElementById('drawerContent'),
+            
+            // モーダル・API設定
+            btnOpenSettings: document.getElementById('btnOpenSettings'),
+            btnCloseSettings: document.getElementById('btnCloseSettings'),
+            settingsModal: document.getElementById('settingsModal'),
+            providerGemini: document.getElementById('providerGemini'),
+            providerOpenAI: document.getElementById('providerOpenAI'),
+            endpointContainer: document.getElementById('endpointContainer'),
+            apiEndpoint: document.getElementById('apiEndpoint'),
+            apiKey: document.getElementById('apiKey'),
+            btnToggleKeyVisibility: document.getElementById('btnToggleKeyVisibility'),
+            eyeIcon: document.getElementById('eyeIcon'),
+            btnFetchModels: document.getElementById('btnFetchModels'),
+            fetchModelsSpinner: document.getElementById('fetchModelsSpinner'),
+            modelSearchInput: document.getElementById('modelSearchInput'),
+            modelSelect: document.getElementById('modelSelect'),
+            btnSaveSettings: document.getElementById('btnSaveSettings'),
+            apiKeyWarningBadge: document.getElementById('apiKeyWarningBadge'),
+            
+            // トーン設定モーダル
+            toneSettingsModal: document.getElementById('toneSettingsModal'),
+            btnCloseToneSettings: document.getElementById('btnCloseToneSettings'),
+            toneListContainer: document.getElementById('toneListContainer'),
+            btnAddTone: document.getElementById('btnAddTone'),
+            btnSaveTones: document.getElementById('btnSaveTones'),
+            toneListScrollArea: document.getElementById('toneListScrollArea'),
+
+            // エラーモーダル
+            errorModal: document.getElementById('errorModal'),
+            errorModalMessage: document.getElementById('errorModalMessage'),
+            btnDismissError: document.getElementById('btnDismissError')
+        };
+
+        /* ==========================================
+         * 2. API設定の保存 / 読込 (キャッシュに依存せず毎回フェッチ)
+         * ========================================== */
+        function loadAPISettings() {
+            const saved = localStorage.getItem('mind_expander_api_settings');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    state.api = { ...state.api, ...parsed };
+                    
+                    // UIに反映
+                    setProviderUI(state.api.provider);
+                    els.apiEndpoint.value = state.api.endpoint;
+                    els.apiKey.value = state.api.apiKey;
+                    
+                    // APIキーが入っていれば警告マークを隠し、裏で自動的に最新モデルを取得（接続確認）
+                    if (state.api.apiKey.trim()) {
+                        els.apiKeyWarningBadge.classList.add('hidden');
+                        els.initialSetupPrompt.classList.add('hidden');
+                        
+                        // 起動時に最新のモデルリストを毎回取得（サイレントモード）
+                        fetchModelsFromAPI(true);
+                    } else {
+                        els.apiKeyWarningBadge.classList.remove('hidden');
+                        els.initialSetupPrompt.classList.remove('hidden');
+                    }
+                } catch(e) {
+                    console.error("API設定のロードに失敗しました", e);
+                }
+            } else {
+                // 初回警告
+                els.apiKeyWarningBadge.classList.remove('hidden');
+                els.initialSetupPrompt.classList.remove('hidden');
+            }
+        }
+
+        /* ==========================================
+         * 2.5 トーン設定の保存 / 読込
+         * ========================================== */
+        function loadToneSettings() {
+            const saved = localStorage.getItem('mind_expander_tones');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        state.tones = parsed;
+                    }
+                } catch(e) {
+                    console.error("Tone設定のロードに失敗しました", e);
+                }
+            }
+            renderToneSelect();
+        }
+
+        function renderToneSelect() {
+            const currentVal = els.aiTone.value;
+            els.aiTone.innerHTML = '';
+            state.tones.forEach(tone => {
+                const opt = document.createElement('option');
+                opt.value = tone.id;
+                opt.textContent = tone.name;
+                els.aiTone.appendChild(opt);
+            });
+            
+            if (state.tones.some(t => t.id === currentVal)) {
+                els.aiTone.value = currentVal;
+            } else if (state.tones.length > 0) {
+                els.aiTone.value = state.tones[0].id;
+            }
+        }
+
+        let tempTones = []; // モーダル編集用の一時配列
+
+        function openToneSettingsModal() {
+            tempTones = JSON.parse(JSON.stringify(state.tones)); // ディープコピー
+            renderToneSettingsList();
+            els.toneSettingsModal.classList.remove('pointer-events-none', 'opacity-0');
+        }
+
+        function closeToneSettingsModal() {
+            els.toneSettingsModal.classList.add('pointer-events-none', 'opacity-0');
+        }
+
+        function renderToneSettingsList() {
+            els.toneListContainer.innerHTML = '';
+            tempTones.forEach((tone, index) => {
+                const item = document.createElement('div');
+                item.className = "flex flex-col gap-2 p-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded relative group transition-all";
+                
+                item.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1 mr-4">
+                            <input type="text" class="tone-name-input w-full text-xs font-semibold bg-transparent border-b border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-400 text-zinc-900 dark:text-zinc-100 px-1 py-0.5" placeholder="Tone名 (例: 哲学者)" value="${escapeHTML(tone.name)}" data-index="${index}">
+                        </div>
+                        <button class="delete-tone-btn text-zinc-400 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100" data-index="${index}" title="削除">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                    <textarea class="tone-prompt-input w-full text-xs bg-transparent border border-zinc-300 dark:border-zinc-700 rounded focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-400 text-zinc-800 dark:text-zinc-200 px-2 py-1.5 resize-y min-h-[60px]" placeholder="AIへの指示（例: 本質を問いかけるような、深く哲学的な視点で...）" data-index="${index}">${escapeHTML(tone.prompt)}</textarea>
+                `;
+                els.toneListContainer.appendChild(item);
+            });
+
+            // イベントリスナーの付与
+            document.querySelectorAll('.tone-name-input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    tempTones[idx].name = e.target.value;
+                });
+            });
+
+            document.querySelectorAll('.tone-prompt-input').forEach(textarea => {
+                textarea.addEventListener('input', (e) => {
+                    const idx = e.target.getAttribute('data-index');
+                    tempTones[idx].prompt = e.target.value;
+                });
+            });
+
+            document.querySelectorAll('.delete-tone-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const idx = e.currentTarget.getAttribute('data-index');
+                    if (tempTones.length <= 1) {
+                        alert("Toneは最低1つ必要です。");
+                        return;
+                    }
+                    tempTones.splice(idx, 1);
+                    renderToneSettingsList();
+                });
+            });
+        }
+
+        function saveToneSettings() {
+            // バリデーション
+            const validTones = tempTones.filter(t => t.name.trim() !== '' && t.prompt.trim() !== '');
+            if (validTones.length === 0) {
+                alert("有効なToneがありません。名前と指示の両方を入力してください。");
+                return;
+            }
+
+            state.tones = validTones;
+            localStorage.setItem('mind_expander_tones', JSON.stringify(state.tones));
+            renderToneSelect();
+            closeToneSettingsModal();
+        }
+
+        function saveAPISettings() {
+            const settingsToSave = {
+                provider: state.api.provider,
+                endpoint: els.apiEndpoint.value.trim(),
+                apiKey: els.apiKey.value.trim(),
+                selectedModel: els.modelSelect.value
+                // 毎回APIから最新のリストを取得するため、モデル一覧(availableModels)はローカルストレージに保存しない
+            };
+            
+            state.api = { ...state.api, ...settingsToSave };
+            localStorage.setItem('mind_expander_api_settings', JSON.stringify(settingsToSave));
+            
+            updateStatusActiveModel();
+            
+            if (state.api.apiKey) {
+                els.apiKeyWarningBadge.classList.add('hidden');
+                els.initialSetupPrompt.classList.add('hidden');
+            }
+        }
+
+        function setProviderUI(provider) {
+            state.api.provider = provider;
+            if (provider === 'gemini') {
+                els.providerGemini.className = "py-2 text-xs font-medium rounded border border-zinc-900 bg-zinc-900 text-white dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 transition-colors";
+                els.providerOpenAI.className = "py-2 text-xs font-medium rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors";
+                els.endpointContainer.classList.add('hidden');
+            } else {
+                els.providerOpenAI.className = "py-2 text-xs font-medium rounded border border-zinc-900 bg-zinc-900 text-white dark:bg-zinc-100 dark:border-zinc-100 dark:text-zinc-900 transition-colors";
+                els.providerGemini.className = "py-2 text-xs font-medium rounded border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 transition-colors";
+                els.endpointContainer.classList.remove('hidden');
+            }
+        }
+
+        function updateStatusActiveModel() {
+            if (state.api.selectedModel) {
+                let modelShortName = state.api.selectedModel;
+                if (modelShortName.startsWith('models/')) {
+                    modelShortName = modelShortName.replace('models/', '');
+                }
+                els.statusActiveModel.textContent = `Active: ${state.api.provider.toUpperCase()} / ${modelShortName}`;
+                els.statusActiveModel.className = "text-zinc-600 dark:text-zinc-300 mt-2 font-sans text-[11px] normal-case bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded-sm inline-block self-start font-medium transition-colors";
+            } else {
+                els.statusActiveModel.textContent = "Active: 未設定";
+                els.statusActiveModel.className = "text-amber-600 dark:text-amber-400 mt-2 font-sans text-[11px] normal-case bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 px-2 py-0.5 rounded-sm inline-block self-start transition-colors";
+            }
+        }
+
+        function showError(msg) {
+            els.errorModalMessage.textContent = msg;
+            els.errorModal.classList.remove('pointer-events-none', 'opacity-0');
+        }
+
+        function hideError() {
+            els.errorModal.classList.add('pointer-events-none', 'opacity-0');
+        }
+
+        /* ==========================================
+         * 3. API経由でのモデルリスト動的取得 (毎回ロード・チェック可能)
+         * ========================================== */
+        async function fetchModelsFromAPI(isSilent = false) {
+            const provider = state.api.provider;
+            const key = els.apiKey.value.trim();
+            const rawEndpoint = els.apiEndpoint.value.trim();
+            
+            if (!key) {
+                if (!isSilent) {
+                    showError("モデル一覧を取得するには、APIキーを入力してください。");
+                }
+                return;
+            }
+
+            els.fetchModelsSpinner.classList.add('animate-spin');
+            els.btnFetchModels.disabled = true;
+
+            try {
+                let fetchedModels = [];
+
+                if (provider === 'gemini') {
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`;
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`Gemini API returned status ${res.status}`);
+                    
+                    const data = await res.json();
+                    if (data.models) {
+                        fetchedModels = data.models
+                            .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+                            .map(m => ({
+                                id: m.name,
+                                name: m.displayName || m.name
+                            }));
+                    }
+                } else {
+                    let endpoint = rawEndpoint || "https://api.openai.com/v1";
+                    if (endpoint.endsWith('/')) endpoint = endpoint.slice(0, -1);
+                    
+                    const url = `${endpoint}/models`;
+                    const res = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${key}`
+                        }
+                    });
+                    if (!res.ok) throw new Error(`OpenAI互換 API returned status ${res.status}`);
+
+                    const data = await res.json();
+                    if (data.data) {
+                        fetchedModels = data.data.map(m => ({
+                            id: m.id,
+                            name: m.id
+                        }));
+                    }
+                }
+
+                if (fetchedModels.length === 0) {
+                    throw new Error("モデルが見つかりませんでした。");
+                }
+
+                state.api.availableModels = fetchedModels;
+                renderModelsDropdown(fetchedModels);
+                
+                if (state.api.selectedModel && fetchedModels.some(m => m.id === state.api.selectedModel)) {
+                    els.modelSelect.value = state.api.selectedModel;
+                } else if (fetchedModels.length > 0) {
+                    els.modelSelect.value = fetchedModels[0].id;
+                    state.api.selectedModel = fetchedModels[0].id;
+                }
+                
+                els.modelSearchInput.value = '';
+                updateStatusActiveModel();
+
+            } catch (error) {
+                console.error("Model fetch failed:", error);
+                if (!isSilent) {
+                    showError(`モデル取得エラー: ${error.message}\nAPIキーまたはエンドポイントが正しいかご確認ください。`);
+                }
+                els.modelSelect.innerHTML = `<option value="" disabled selected>接続確認エラー: モデルを取得できませんでした</option>`;
+            } finally {
+                els.fetchModelsSpinner.classList.remove('animate-spin');
+                els.btnFetchModels.disabled = false;
+            }
+        }
+
+        function renderModelsDropdown(modelsList, filterQuery = '') {
+            els.modelSelect.innerHTML = '';
+            
+            const normalizedQuery = filterQuery.toLowerCase().trim();
+            const filtered = modelsList.filter(m => 
+                m.id.toLowerCase().includes(normalizedQuery) || 
+                m.name.toLowerCase().includes(normalizedQuery)
+            );
+
+            if (filtered.length === 0) {
+                const opt = document.createElement('option');
+                opt.textContent = "一致するモデルがありません";
+                opt.disabled = true;
+                opt.selected = true;
+                els.modelSelect.appendChild(opt);
+                return;
+            }
+
+            filtered.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m.id;
+                opt.textContent = m.name === m.id ? m.id : `${m.name} (${m.id})`;
+                if (state.api.selectedModel === m.id) {
+                    opt.selected = true;
+                }
+                els.modelSelect.appendChild(opt);
+            });
+        }
+
+        /* ==========================================
+         * 4. AIリクエスト送信（Gemini / OpenAI切り替え）
+         * ========================================== */
+        async function fetchAICompletion(userQuery) {
+            const provider = state.api.provider;
+            const key = state.api.apiKey;
+            const model = state.api.selectedModel;
+            const endpoint = state.api.endpoint;
+
+            if (!key) {
+                showError("API設定が見つかりません。右上のスライダー設定から、APIキーを登録してください。");
+                throw new Error("API Key Missing");
+            }
+
+            if (!model) {
+                showError("使用するAIモデルが選択されていません。右上の設定からモデルを取得して選択してください。");
+                throw new Error("No Model Selected");
+            }
+
+            let maxAttempts = 5;
+            let baseDelay = 1000;
+
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    if (provider === 'gemini') {
+                        let cleanModelName = model;
+                        if (!cleanModelName.startsWith('models/')) {
+                            cleanModelName = `models/${cleanModelName}`;
+                        }
+                        
+                        const url = `https://generativelanguage.googleapis.com/v1beta/${cleanModelName}:generateContent?key=${key}`;
+                        const payload = {
+                            contents: [{ parts: [{ text: userQuery }] }],
+                            generationConfig: {
+                                responseMimeType: "application/json"
+                            }
+                        };
+
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`Gemini API [${response.status}]`);
+                        }
+
+                        const result = await response.json();
+                        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (text) return text;
+                        throw new Error("Empty Response candidate");
+
+                    } else {
+                        let cleanEndpoint = endpoint || "https://api.openai.com/v1";
+                        if (cleanEndpoint.endsWith('/')) cleanEndpoint = cleanEndpoint.slice(0, -1);
+                        
+                        const url = `${cleanEndpoint}/chat/completions`;
+                        const payload = {
+                            model: model,
+                            messages: [
+                                { role: "user", content: userQuery }
+                            ],
+                            response_format: { type: "json_object" }
+                        };
+
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${key}`
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`OpenAI互換 API [${response.status}]`);
+                        }
+
+                        const result = await response.json();
+                        const text = result.choices?.[0]?.message?.content;
+                        if (text) return text;
+                        throw new Error("Empty chat completion content");
+                    }
+
+                } catch (error) {
+                    if (attempt === maxAttempts) {
+                        showError(`AIリクエストに失敗しました。\nエラー: ${error.message}`);
+                        throw error;
+                    }
+                    const delay = baseDelay * Math.pow(2, attempt - 1);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+
+        function cleanAndParseJSON(rawText) {
+            let clean = rawText.trim();
+            if (clean.includes('```')) {
+                clean = clean.replace(/```json/gi, '');
+                clean = clean.replace(/```/g, '');
+            }
+            return JSON.parse(clean.trim());
+        }
+
+        /* ==========================================
+         * 5. フレーズ生成・再生成ロジック
+         * ========================================== */
+        async function fetchAIExpansion(keyword, parentContext = '', toneId = 'creative') {
+            const toneObj = state.tones.find(t => t.id === toneId) || state.tones[0];
+            const tonePrompt = toneObj.prompt;
+
+            const purposeContext = state.purpose 
+                ? `また、この思考の明確な目的は「${state.purpose}」です。単なる連想ではなく、この目的を達成したり、解決に一歩近づくための非常にシャープな切り口にしてください。` 
+                : "明確な目的は設定されていません。自由で多角的な視点からアイデアを広げてください。";
+
+            const userQuery = `現在のキーフレーズは「${keyword}」です。${parentContext ? `これまでの文脈: 「${parentContext}」。` : ''}
+${purposeContext}
+このフレーズからさらに深く思考が広がる、次につながる「まとまった1行の文章、問いかけ、またはアイデアの視点」を4個作成してください。
+
+各フレーズの満たすべき条件：
+1. 15文字〜35文字程度のまとまった読みやすい一文にすること。単なる「単語」ではなく「文章・問い」にすること。
+2. 思考を深く刺激する魅力的なフレーズにすること。
+3. トーンの要望: ${tonePrompt}
+
+アウトプットは必ず以下のJSONスキーマに従ったJSON形式で出力してください。他の説明テキストやマークダウンは絶対に含めないでください。
+
+            JSON出力フォーマット例:
+["フレーズ1", "フレーズ2", "フレーズ3", "フレーズ4"]`;
+
+            try {
+                const rawResponse = await fetchAICompletion(userQuery);
+                return cleanAndParseJSON(rawResponse);
+            } catch (error) {
+                console.error("Error expanding:", error);
+                return [
+                    `「${keyword}」がもたらす新しい価値とは何か`,
+                    `「${keyword}」をあえて逆から捉え重厚に分析し直してみる`,
+                    `「${keyword}」の裏に潜む本質的な欲望を暴く`,
+                    `「${keyword}」を異なる全く別の分野へ応用するアイデア`
+                ];
+            }
+        }
+
+        async function fetchSingleNodeRegeneration(currentText, parentContext = '', toneId = 'creative') {
+            const toneObj = state.tones.find(t => t.id === toneId) || state.tones[0];
+            const tonePrompt = toneObj.prompt;
+
+            const purposeContext = state.purpose 
+                ? `この思考の目的は「${state.purpose}」です。目的に完全に合致する一文にしてください。` 
+                : "自由で多角的な視点からアイデアを広げてください。";
+
+            const userQuery = `現在の切り口「${currentText}」${parentContext ? `（親フレーズの文脈: 「${parentContext}」）` : ''}に代わる、全く別の視点から思考を深く刺激する新しい「まとまった1行の文章、問いかけ、またはアイデア」を1つだけ作成してください。
+${purposeContext}
+
+条件：
+1. 15文字〜35文字程度のまとまった読みやすい一文にすること。単語ではなく文章にすること。
+2. トーンの要望: ${tonePrompt}
+
+アウトプットは必ずJSONオブジェクトでキー名 "text" に新しい一文を入れて返してください。説明は一切不要です。
+
+フォーマット例:
+{
+  "text": "新しい問いかける一文"
+}`;
+
+            try {
+                const rawResponse = await fetchAICompletion(userQuery);
+                const parsed = cleanAndParseJSON(rawResponse);
+                return parsed.text || currentText;
+            } catch (error) {
+                console.error("Error regenerating single:", error);
+                return currentText;
+            }
+        }
+
+        async function cleanupVoiceTextWithAI(rawText) {
+            // API未設定の場合はそのままのテキストを返す
+            if (!state.api.apiKey || !state.api.selectedModel) {
+                return rawText;
+            }
+
+            const userQuery = `以下の音声認識結果から、「あー」「えーと」「そのー」などのフィラー（意味のないつなぎ言葉）、言い間違いの修正過程、環境音のノイズと思われる部分を取り除き、ユーザーが意図したクリーンなキーワードまたは短い文章のみを抽出・整形してください。
+
+音声認識結果:
+「${rawText}」
+
+条件：
+1. 抽出されたクリーンなテキストのみを出力すること。
+2. 可能な限り元の意図を保ち、不要な部分だけを削ること。
+3. 出力は必ず以下のJSONスキーマに従ったJSON形式で出力してください。他の説明テキストやマークダウンは絶対に含めないでください。
+
+フォーマット例:
+{
+  "clean_text": "整形されたテキスト"
+}`;
+
+            try {
+                const rawResponse = await fetchAICompletion(userQuery);
+                const parsed = cleanAndParseJSON(rawResponse);
+                return parsed.clean_text || rawText;
+            } catch (error) {
+                console.error("Voice cleanup failed:", error);
+                return rawText;
+            }
+        }
+
+        /* ==========================================
+         * 6. キャンバス操作 (Pan & Zoom)
+         * ========================================== */
+        function initCanvas() {
+            centerCanvas();
+
+            els.canvasContainer.addEventListener('mousedown', (e) => {
+                if (e.target.closest('.node-element') || e.target.closest('button') || e.target.closest('select') || e.target.closest('input') || e.target.closest('textarea') || e.target.closest('#settingsModal') || e.target.closest('#btnToggleDrawer')) return;
+                state.isDragging = true;
+                state.startX = e.clientX - state.panX;
+                state.startY = e.clientY - state.panY;
+                els.canvasContainer.style.cursor = 'grabbing';
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!state.isDragging) return;
+                state.panX = e.clientX - state.startX;
+                state.panY = e.clientY - state.startY;
+                updateCanvasTransform();
+            });
+
+            window.addEventListener('mouseup', () => {
+                state.isDragging = false;
+                els.canvasContainer.style.cursor = 'grab';
+            });
+
+            els.canvasContainer.addEventListener('wheel', (e) => {
+                if (e.target.closest('#settingsModal')) return;
+                e.preventDefault();
+                const zoomFactor = 1.08;
+                const rect = els.canvasContainer.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const canvasX = (mouseX - state.panX) / state.scale;
+                const canvasY = (mouseY - state.panY) / state.scale;
+
+                if (e.deltaY < 0) {
+                    state.scale = Math.min(state.scale * zoomFactor, config.maxZoom);
+                } else {
+                    state.scale = Math.max(state.scale / zoomFactor, config.minZoom);
+                }
+
+                state.panX = mouseX - canvasX * state.scale;
+                state.panY = mouseY - canvasY * state.scale;
+
+                updateCanvasTransform();
+            }, { passive: false });
+
+            let touchStartDist = 0;
+            let touchStartScale = 1;
+            els.canvasContainer.addEventListener('touchstart', (e) => {
+                if (e.target.closest('.node-element') || e.target.closest('#settingsModal') || e.target.closest('#btnToggleDrawer')) return;
+                if (e.touches.length === 1) {
+                    state.isDragging = true;
+                    state.startX = e.touches[0].clientX - state.panX;
+                    state.startY = e.touches[0].clientY - state.panY;
+                } else if (e.touches.length === 2) {
+                    state.isDragging = false;
+                    touchStartDist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    touchStartScale = state.scale;
+                }
+            });
+
+            els.canvasContainer.addEventListener('touchmove', (e) => {
+                if (state.isDragging && e.touches.length === 1) {
+                    state.panX = e.touches[0].clientX - state.startX;
+                    state.panY = e.touches[0].clientY - state.startY;
+                    updateCanvasTransform();
+                } else if (e.touches.length === 2) {
+                    const dist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                    );
+                    const factor = dist / touchStartDist;
+                    state.scale = Math.max(config.minZoom, Math.min(config.maxZoom, touchStartScale * factor));
+                    updateCanvasTransform();
+                }
+            });
+
+            els.canvasContainer.addEventListener('touchend', () => {
+                state.isDragging = false;
+            });
+        }
+
+        function updateCanvasTransform() {
+            els.canvasContent.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.scale})`;
+        }
+
+        function centerCanvas() {
+            const containerWidth = els.canvasContainer.clientWidth;
+            const containerHeight = els.canvasContainer.clientHeight;
+            state.panX = containerWidth / 2;
+            state.panY = containerHeight / 2;
+            state.scale = 0.9;
+            updateCanvasTransform();
+        }
+
+        /* ==========================================
+         * 7. ノード幾何・位置決め・接続の数理 (重なり回避システム)
+         * ========================================== */
+        function calculateChildCoordinates(parentNode, index, total) {
+            const px = parentNode.x;
+            const py = parentNode.y;
+            
+            let baseAngle = 0;
+
+            if (parentNode.parentId) {
+                const grandParent = state.nodes[parentNode.parentId];
+                if (grandParent) {
+                    baseAngle = Math.atan2(py - grandParent.y, px - grandParent.x);
+                }
+            } else {
+                const angle = (index / total) * 2 * Math.PI;
+                return findNonOverlappingCoords(px, py, angle, config.nodeRadius);
+            }
+
+            const spread = Math.PI * 0.85; 
+            const startAngle = baseAngle - spread / 2;
+            const step = spread / (total - 1);
+            const currentAngle = startAngle + index * step;
+
+            return findNonOverlappingCoords(px, py, currentAngle, config.nodeRadius);
+        }
+
+        function findNonOverlappingCoords(px, py, angle, initialRadius) {
+            let radius = initialRadius;
+            let maxAttempts = 12;
+            let safeX = px + radius * Math.cos(angle);
+            let safeY = py + radius * Math.sin(angle);
+            
+            const minDistanceX = 350; 
+            const minDistanceY = 160;
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                let hasCollision = false;
+                
+                for (const id in state.nodes) {
+                    const existingNode = state.nodes[id];
+                    const dx = Math.abs(safeX - existingNode.x);
+                    const dy = Math.abs(safeY - existingNode.y);
+                    
+                    if (dx < minDistanceX && dy < minDistanceY) {
+                        hasCollision = true;
+                        break;
+                    }
+                }
+                
+                if (!hasCollision) {
+                    return { x: safeX, y: safeY, angle: angle };
+                }
+                
+                radius += 100;
+                safeX = px + radius * Math.cos(angle);
+                safeY = py + radius * Math.sin(angle);
+            }
+            
+            return { x: safeX, y: safeY, angle: angle };
+        }
+
+        /* ==========================================
+         * 8. ノード & 線のレンダリング (DOM + SVG)
+         * ========================================== */
+        function createNode(text, x, y, parentId = null) {
+            state.nodeCount++;
+            const id = `node_${state.nodeCount}`;
+            
+            state.nodes[id] = {
+                id,
+                text,
+                x,
+                y,
+                parentId,
+                expanded: false,
+                children: []
+            };
+
+            if (parentId) {
+                state.nodes[parentId].children.push(id);
+                state.connections.push({ parentId, childId: id });
+            }
+
+            renderNodeElement(id);
+            return id;
+        }
+
+        function renderNodeElement(id) {
+            const node = state.nodes[id];
+            const isRoot = !node.parentId;
+
+            const div = document.createElement('div');
+            div.id = id;
+            
+            div.className = `node-element group absolute transform -translate-x-1/2 -translate-y-1/2 select-none z-10 transition-all duration-300 ease-out fade-in`;
+            div.style.left = `${node.x}px`;
+            div.style.top = `${node.y}px`;
+
+            const rootStyle = "bg-zinc-900 border border-zinc-950 text-white dark:bg-zinc-100 dark:border-zinc-200 dark:text-zinc-900 font-medium px-6 py-4 rounded shadow-md tracking-wide cursor-pointer text-sm max-w-[320px] text-center";
+            const normalStyle = "bg-white border border-zinc-200 text-zinc-800 hover:border-zinc-500 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:hover:border-zinc-400 px-5 py-3.5 rounded shadow-sm hover:shadow-md transition-all text-xs cursor-pointer min-w-[200px] max-w-[320px] text-center font-normal leading-relaxed";
+            
+            div.className += ` ${isRoot ? rootStyle : normalStyle}`;
+
+            const actionsHtml = `
+                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-zinc-950 text-zinc-100 rounded px-2.5 py-1 shadow-md flex items-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto z-20 text-[10px] font-sans">
+                    <button onclick="event.stopPropagation(); startEditNode('${id}')" title="この文章を編集" class="hover:text-zinc-400 transition-colors px-1 py-0.5">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button onclick="event.stopPropagation(); regenerateSingleNode('${id}')" title="この文章をAIで再生成" class="hover:text-zinc-400 transition-colors px-1 py-0.5 border-l border-zinc-800 pl-2">
+                        <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+                    </button>
+                    ${node.expanded && node.children.length > 0 ? `
+                        <button onclick="event.stopPropagation(); regenerateChildrenNodes('${id}')" title="ここから伸びる枝（子ノード）を再生成" class="hover:text-zinc-400 transition-colors px-1 py-0.5 border-l border-zinc-800 pl-2">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+
+            div.innerHTML = `
+                ${actionsHtml}
+                <div class="flex items-center justify-center gap-1">
+                    <span class="node-text break-words w-full" id="text_${id}">${escapeHTML(node.text)}</span>
+                </div>
+            `;
+
+            div.addEventListener('click', (e) => {
+                if (e.target.closest('button') || e.target.closest('input')) return;
+                selectNode(id);
+            });
+
+            els.nodesLayer.appendChild(div);
+        }
+
+        window.startEditNode = function(id) {
+            const node = state.nodes[id];
+            const textSpan = document.getElementById(`text_${id}`);
+            if (!textSpan || state.isGenerating) return;
+
+            const originalText = node.text;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = originalText;
+            input.className = "w-full bg-transparent text-center text-xs text-zinc-800 dark:text-zinc-100 border-none focus:outline-none focus:ring-0 py-0.5";
+            
+            textSpan.innerHTML = '';
+            textSpan.appendChild(input);
+            input.focus();
+            input.select();
+
+            let isFinished = false;
+
+            const finishEdit = () => {
+                if (isFinished) return;
+                isFinished = true;
+                const newText = input.value.trim();
+                node.text = newText || originalText;
+                
+                textSpan.textContent = node.text;
+                updatePathDisplay();
+            };
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    finishEdit();
+                } else if (e.key === 'Escape') {
+                    input.value = originalText;
+                    finishEdit();
+                }
+            });
+
+            input.addEventListener('blur', finishEdit);
+        };
+
+        window.regenerateSingleNode = async function(id) {
+            const node = state.nodes[id];
+            if (state.isGenerating) return;
+
+            state.isGenerating = true;
+            
+            const textSpan = document.getElementById(`text_${id}`);
+            const originalText = node.text;
+            if (textSpan) {
+                textSpan.innerHTML = `<span class="text-zinc-400 italic flex items-center justify-center gap-1.5"><i class="fa-solid fa-spinner animate-spin"></i>再編中...</span>`;
+            }
+
+            const parentContext = node.parentId ? state.nodes[node.parentId].text : '';
+            const currentTone = els.aiTone.value;
+
+            const newText = await fetchSingleNodeRegeneration(originalText, parentContext, currentTone);
+            
+            node.text = newText;
+            if (textSpan) {
+                textSpan.textContent = newText;
+            }
+
+            state.isGenerating = false;
+            updatePathDisplay();
+        };
+
+        function removeNodeAndDescendants(nodeId) {
+            const node = state.nodes[nodeId];
+            if (!node) return;
+
+            if (node.children && node.children.length > 0) {
+                node.children.forEach(childId => {
+                    removeNodeAndDescendants(childId);
+                });
+            }
+
+            const el = document.getElementById(nodeId);
+            if (el) el.remove();
+
+            delete state.nodes[nodeId];
+            state.connections = state.connections.filter(c => c.childId !== nodeId && c.parentId !== nodeId);
+        }
+
+        window.regenerateChildrenNodes = async function(id) {
+            const node = state.nodes[id];
+            if (state.isGenerating || !node.expanded || node.children.length === 0) return;
+
+            const childrenToRemove = [...node.children];
+            childrenToRemove.forEach(childId => {
+                removeNodeAndDescendants(childId);
+            });
+
+            node.children = [];
+            node.expanded = false;
+
+            await expandNodeWithAI(id);
+            drawConnections();
+        };
+
+        function drawConnections() {
+            els.svgConnections.innerHTML = '';
+            
+            const isDark = document.documentElement.classList.contains('dark');
+
+            state.connections.forEach(conn => {
+                const parent = state.nodes[conn.parentId];
+                const child = state.nodes[conn.childId];
+                if (!parent || !child) return;
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                
+                const x1 = parent.x + 5000;
+                const y1 = parent.y + 5000;
+                const x2 = child.x + 5000;
+                const y2 = child.y + 5000;
+
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const controlX1 = x1 + dx * 0.4;
+                const controlY1 = y1 + dy * 0.1;
+                const controlX2 = x1 + dx * 0.6;
+                const controlY2 = y2 - dy * 0.1;
+
+                const isChildActive = isNodeInSelectedPath(child.id);
+                // 視認性を劇的に向上させたカラー設計 (ダークモード対応)
+                const strokeColor = isChildActive 
+                    ? (isDark ? '#f4f4f5' : '#0f172a') 
+                    : (isDark ? '#3f3f46' : '#cbd5e1'); 
+                const strokeWidth = isChildActive ? '2.5' : '1.5';
+
+                path.setAttribute('d', `M ${x1} ${y1} C ${controlX1} ${controlY1}, ${controlX2} ${controlY2}, ${x2} ${y2}`);
+                path.setAttribute('stroke', strokeColor);
+                path.setAttribute('stroke-width', strokeWidth);
+                path.setAttribute('fill', 'none');
+                
+                if (isChildActive) {
+                    path.setAttribute('class', 'node-connection');
+                }
+
+                els.svgConnections.appendChild(path);
+            });
+        }
+
+        function isNodeInSelectedPath(nodeId) {
+            if (!state.selectedNodeId) return false;
+            let currentId = state.selectedNodeId;
+            while (currentId) {
+                if (currentId === nodeId) return true;
+                currentId = state.nodes[currentId].parentId;
+            }
+            return false;
+        }
+
+        /* ==========================================
+         * 9. インタラクション & アイデア展開
+         * ========================================== */
+        async function selectNode(nodeId) {
+            if (!state.api.apiKey) {
+                openSettingsModal();
+                showError("ブレストを開始、またはフレーズを展開するには、まずAPIキーの設定を完了してください。");
+                return;
+            }
+
+            state.selectedNodeId = nodeId;
+            
+            document.querySelectorAll('.node-element').forEach(el => {
+                const isRoot = !state.nodes[el.id].parentId;
+                el.classList.remove('ring-2', 'ring-zinc-400', 'border-zinc-500');
+                
+                if (el.id === nodeId) {
+                    if (isRoot) {
+                        el.classList.add('ring-2', 'ring-zinc-900');
+                    } else {
+                        el.classList.add('ring-2', 'ring-zinc-500', 'border-zinc-500');
+                    }
+                }
+            });
+
+            const node = state.nodes[nodeId];
+            updatePathDisplay();
+
+            if (!node.expanded) {
+                await expandNodeWithAI(nodeId);
+            }
+
+            drawConnections();
+            focusOnNode(node.x, node.y);
+        }
+
+        function focusOnNode(x, y) {
+            const containerWidth = els.canvasContainer.clientWidth;
+            const containerHeight = els.canvasContainer.clientHeight;
+            
+            state.panX = containerWidth / 2 - x * state.scale;
+            state.panY = containerHeight / 2 - y * state.scale;
+            
+            els.canvasContent.style.transition = 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)';
+            updateCanvasTransform();
+            
+            setTimeout(() => {
+                els.canvasContent.style.transition = 'none';
+            }, 500);
+        }
+
+        async function expandNodeWithAI(nodeId) {
+            const node = state.nodes[nodeId];
+            if (node.expanded || state.isGenerating) return;
+
+            state.isGenerating = true;
+            node.expanded = true;
+
+            const loaderIds = [];
+            for (let i = 0; i < config.childCount; i++) {
+                const coords = calculateChildCoordinates(node, i, config.childCount);
+                const tempId = createNode('思考の糸を紡いでいます...', coords.x, coords.y, nodeId);
+                loaderIds.push(tempId);
+                
+                const childEl = document.getElementById(tempId);
+                childEl.classList.add('opacity-30');
+            }
+            drawConnections();
+
+            const parentContext = node.parentId ? state.nodes[node.parentId].text : '';
+            const currentTone = els.aiTone.value;
+
+            try {
+                const suggestions = await fetchAIExpansion(node.text, parentContext, currentTone);
+
+                for (let i = 0; i < config.childCount; i++) {
+                    const loaderId = loaderIds[i];
+                    const loaderNode = state.nodes[loaderId];
+                    const word = suggestions[i] || `「${node.text}」から広がる新たな思考への問い`;
+
+                    loaderNode.text = word;
+                    const el = document.getElementById(loaderId);
+                    if (el) {
+                        el.classList.remove('opacity-30');
+                    }
+                    
+                    const textSpan = document.getElementById(`text_${loaderId}`);
+                    if (textSpan) {
+                        textSpan.textContent = word;
+                    }
+                }
+            } catch (error) {
+                console.error("AI展開失敗", error);
+                loaderIds.forEach(id => removeNodeAndDescendants(id));
+                node.expanded = false;
+            } finally {
+                state.isGenerating = false;
+                drawConnections();
+            }
+        }
+
+        function getActivePathWords() {
+            if (!state.selectedNodeId) return [];
+            const words = [];
+            let currentId = state.selectedNodeId;
+            while (currentId) {
+                words.unshift(state.nodes[currentId].text);
+                currentId = state.nodes[currentId].parentId;
+            }
+            return words;
+        }
+
+        function updatePathDisplay() {
+            const words = getActivePathWords();
+            els.pathWordsList.innerHTML = '';
+            
+            if (words.length === 0) {
+                els.pathWordsList.innerHTML = `<span class="text-zinc-300 dark:text-zinc-600 italic">キャンバスのフレーズを選択してください</span>`;
+                els.storyTextarea.value = '';
+                return;
+            }
+
+            words.forEach((word, index) => {
+                const isLast = index === words.length - 1;
+                
+                const span = document.createElement('span');
+                span.className = isLast 
+                    ? 'text-zinc-950 dark:text-zinc-50 font-semibold' 
+                    : 'text-zinc-400 dark:text-zinc-500 font-light';
+                span.textContent = word;
+                
+                els.pathWordsList.appendChild(span);
+
+                if (!isLast) {
+                    const arrow = document.createElement('i');
+                    arrow.className = 'fa-solid fa-chevron-right text-zinc-300 dark:text-zinc-600 text-[8px] mx-1';
+                    els.pathWordsList.appendChild(arrow);
+                }
+            });
+
+            let formattedText = "";
+            if (state.purpose) {
+                formattedText += `【目的：${state.purpose}】\n`;
+            }
+
+            formattedText += words.map(word => {
+                const trimmed = word.trim();
+                if (!trimmed) return '';
+                if (/[。？！?!]$/.test(trimmed)) {
+                    return trimmed;
+                }
+                return trimmed + '。';
+            }).join(' ');
+
+            els.storyTextarea.value = formattedText;
+        }
+
+        /* ==========================================
+         * 10. モーダル・ダイアログ制御
+         * ========================================== */
+        function openSettingsModal() {
+            els.settingsModal.classList.remove('pointer-events-none', 'opacity-0');
+            if (els.apiKey.value.trim()) {
+                fetchModelsFromAPI(true); 
+            }
+        }
+
+        function closeSettingsModal() {
+            els.settingsModal.classList.add('pointer-events-none', 'opacity-0');
+        }
+
+        function toggleDrawer(forceOpen = null) {
+            const shouldOpen = forceOpen !== null ? forceOpen : !state.drawerOpen;
+            const indicator = document.getElementById('drawerIndicatorIcon');
+            
+            if (shouldOpen) {
+                els.bottomDrawer.style.height = '270px'; // 高さを十分確保
+                state.drawerOpen = true;
+                if (indicator) {
+                    indicator.className = 'fa-solid fa-chevron-down text-[8px] text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 transition-all duration-300 transform scale-110';
+                }
+                // エディタコンテンツをふわっと表示し、インタラクションを有効化
+                if (els.drawerContent) {
+                    els.drawerContent.classList.remove('opacity-0', 'pointer-events-none');
+                    els.drawerContent.classList.add('opacity-100', 'pointer-events-auto');
+                }
+                // ボーダーを可視化
+                els.selectedPathContainer.classList.remove('border-transparent');
+                els.selectedPathContainer.classList.add('border-zinc-100', 'dark:border-zinc-800');
+            } else {
+                els.bottomDrawer.style.height = '52px'; // 閉じている時の絶対的な高さ
+                state.drawerOpen = false;
+                if (indicator) {
+                    indicator.className = 'fa-solid fa-chevron-up text-[8px] text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 transition-all duration-300 transform scale-110';
+                }
+                // エディタコンテンツを完全に隠して隙間からの漏れを防ぐ
+                if (els.drawerContent) {
+                    els.drawerContent.classList.remove('opacity-100', 'pointer-events-auto');
+                    els.drawerContent.classList.add('opacity-0', 'pointer-events-none');
+                }
+                // ボーダーを隠してノイズを消す
+                els.selectedPathContainer.classList.add('border-transparent');
+                els.selectedPathContainer.classList.remove('border-zinc-100', 'dark:border-zinc-800');
+            }
+        }
+
+        function initPurposeEdit() {
+            els.displayPurpose.addEventListener('click', (e) => {
+                if (state.isGenerating) return;
+                
+                const currentPurpose = state.purpose;
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = currentPurpose;
+                input.placeholder = "目的を自由に入力（例：課題解決、企画立案）";
+                input.className = "bg-transparent text-[11px] text-zinc-800 dark:text-zinc-200 border-b border-zinc-300 dark:border-zinc-700 focus:outline-none focus:border-zinc-900 dark:focus:border-zinc-400 w-[240px] px-1 py-0";
+                
+                const parent = els.displayPurpose.parentElement;
+                els.displayPurpose.replaceWith(input);
+                input.focus();
+                input.select();
+
+                let isFinished = false;
+
+                const finishEdit = () => {
+                    if (isFinished) return;
+                    isFinished = true;
+                    
+                    const newPurpose = input.value.trim();
+                    state.purpose = newPurpose || "AIにお願いするための文章の続き考えてください。";
+                    
+                    els.displayPurpose.textContent = state.purpose;
+                    input.replaceWith(els.displayPurpose);
+                    
+                    updatePathDisplay();
+                };
+
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        finishEdit();
+                    } else if (e.key === 'Escape') {
+                        input.value = currentPurpose;
+                        finishEdit();
+                    }
+                });
+
+                input.addEventListener('blur', finishEdit);
+            });
+        }
+
+        // イベントリスナーのセットアップ
+        function initUIEvents() {
+            initPurposeEdit();
+
+            // --- テーマ切り替え ---
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                if(els.themeIcon) els.themeIcon.classList.replace('fa-moon', 'fa-sun');
+            } else {
+                document.documentElement.classList.remove('dark');
+                if(els.themeIcon) els.themeIcon.classList.replace('fa-sun', 'fa-moon');
+            }
+
+            els.btnToggleTheme.addEventListener('click', () => {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                els.themeIcon.className = isDark ? 'fa-solid fa-sun text-xs' : 'fa-solid fa-moon text-xs';
+                drawConnections(); // 線の色も再描画
+            });
+            
+            // 音声入力セットアップ (Web Speech API)
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            let recognition = null;
+            let isRecording = false;
+
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.lang = 'ja-JP';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+
+                const resetVoiceIcon = () => {
+                    isRecording = false;
+                    els.voiceIcon.className = 'fa-solid fa-microphone text-lg transition-all';
+                    els.btnVoiceInput.classList.remove('animate-pulse', 'bg-rose-50');
+                };
+
+                recognition.onstart = function() {
+                    isRecording = true;
+                    els.voiceIcon.className = 'fa-solid fa-microphone-lines text-rose-500 text-lg transition-all';
+                    els.btnVoiceInput.classList.add('animate-pulse', 'bg-rose-50');
+                    els.initialWordInput.placeholder = "音声を聞き取っています...";
+                    els.initialWordInput.value = "";
+                };
+
+                recognition.onresult = async function(event) {
+                    const rawTranscript = event.results[0][0].transcript;
+                    els.initialWordInput.placeholder = "AIが音声を整形中...";
+                    els.voiceIcon.className = 'fa-solid fa-spinner fa-spin text-zinc-400 text-lg transition-all';
+                    els.btnVoiceInput.classList.remove('animate-pulse', 'bg-rose-50');
+                    
+                    try {
+                        const cleanText = await cleanupVoiceTextWithAI(rawTranscript);
+                        els.initialWordInput.value = cleanText;
+                        els.initialWordInput.placeholder = "何を広げますか？（テーマ）";
+                    } catch (e) {
+                        els.initialWordInput.value = rawTranscript;
+                        els.initialWordInput.placeholder = "何を広げますか？（テーマ）";
+                    } finally {
+                        els.initialWordInput.style.height = 'auto';
+                        els.initialWordInput.style.height = els.initialWordInput.scrollHeight + 'px';
+                        resetVoiceIcon();
+                        els.initialWordInput.focus();
+                    }
+                };
+
+                recognition.onerror = function(event) {
+                    console.error("Speech recognition error", event.error);
+                    resetVoiceIcon();
+                    els.initialWordInput.placeholder = "何を広げますか？（テーマ）";
+                };
+
+                recognition.onend = function() {
+                    if (isRecording) {
+                        resetVoiceIcon();
+                        els.initialWordInput.placeholder = "何を広げますか？（テーマ）";
+                    }
+                };
+
+                els.btnVoiceInput.addEventListener('click', () => {
+                    if (isRecording) {
+                        recognition.stop();
+                    } else {
+                        recognition.start();
+                    }
+                });
+            } else {
+                if(els.btnVoiceInput) els.btnVoiceInput.style.display = 'none';
+            }
+
+            // トーン設定モーダル周り
+            els.btnOpenToneSettings.addEventListener('click', () => openToneSettingsModal());
+            els.btnCloseToneSettings.addEventListener('click', () => closeToneSettingsModal());
+            els.btnAddTone.addEventListener('click', () => {
+                const newId = `custom_${Date.now()}`;
+                tempTones.push({ id: newId, name: '', prompt: '' });
+                renderToneSettingsList();
+                // 一番下までスクロール
+                setTimeout(() => {
+                    els.toneListScrollArea.scrollTop = els.toneListScrollArea.scrollHeight;
+                }, 10);
+            });
+            els.btnSaveTones.addEventListener('click', () => saveToneSettings());
+
+            // つまみボタンをクリックした際の開閉
+            els.btnToggleDrawer.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleDrawer();
+            });
+
+            // Route（思考ルートバー）自体をクリックした際の開閉（テキスト上のスパン除外）
+            els.selectedPathContainer.addEventListener('click', (e) => {
+                if (!e.target.closest('span')) {
+                    toggleDrawer();
+                }
+            });
+
+            els.btnRecenter.addEventListener('click', () => {
+                if (state.selectedNodeId) {
+                    const node = state.nodes[state.selectedNodeId];
+                    focusOnNode(node.x, node.y);
+                } else {
+                    centerCanvas();
+                }
+            });
+
+            els.btnReset.addEventListener('click', () => {
+                resetApp();
+            });
+
+            // テキストエリアの自動リサイズ
+            els.initialWordInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = this.scrollHeight + 'px';
+            });
+
+            // テーマ入力完了で直接ブレストをスタート
+            els.initialWordInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault(); // 改行を防ぐ
+                    if (!state.api.apiKey) {
+                        openSettingsModal();
+                        showError("ブレストを開始するには、先に右上の設定ボタンから APIキーを設定してください。");
+                        return;
+                    }
+                    const keyword = els.initialWordInput.value.trim();
+                    if (keyword) {
+                        startExpander(keyword);
+                    }
+                }
+            });
+
+            els.btnCopyStory.addEventListener('click', () => {
+                const text = els.storyTextarea.value;
+                if (!text) return;
+
+                const showFeedback = () => {
+                    els.copyFeedback.classList.remove('opacity-0');
+                    els.copyFeedback.classList.add('opacity-100');
+                    setTimeout(() => {
+                        els.copyFeedback.classList.remove('opacity-100');
+                        els.copyFeedback.classList.add('opacity-0');
+                    }, 2000);
+                };
+
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(text).then(showFeedback).catch(err => {
+                        console.error('Clipboard copy failed: ', err);
+                    });
+                } else {
+                    const tempTextArea = document.createElement('textarea');
+                    tempTextArea.value = text;
+                    document.body.appendChild(tempTextArea);
+                    tempTextArea.select();
+                    try {
+                        document.execCommand('copy');
+                        showFeedback();
+                    } catch (err) {
+                        console.error('Fallback copy failed: ', err);
+                    }
+                    document.body.removeChild(tempTextArea);
+                }
+            });
+
+            els.btnClearStory.addEventListener('click', () => {
+                els.storyTextarea.value = '';
+            });
+
+            // --- 設定モーダル周り ---
+            els.btnOpenSettings.addEventListener('click', () => openSettingsModal());
+            els.btnCloseSettings.addEventListener('click', () => closeSettingsModal());
+            
+            els.providerGemini.addEventListener('click', () => {
+                setProviderUI('gemini');
+                if (els.apiKey.value.trim()) {
+                    fetchModelsFromAPI(true); // 切り替え時にサイレント自動取得
+                }
+            });
+            
+            els.providerOpenAI.addEventListener('click', () => {
+                setProviderUI('openai');
+                if (els.apiKey.value.trim()) {
+                    fetchModelsFromAPI(true); // 切り替え時にサイレント自動取得
+                }
+            });
+
+            // キー入力欄 of 変更時にも自動で疎通をテスト
+            els.apiKey.addEventListener('change', () => {
+                if (els.apiKey.value.trim()) {
+                    fetchModelsFromAPI(true);
+                }
+            });
+
+            els.btnToggleKeyVisibility.addEventListener('click', () => {
+                const type = els.apiKey.getAttribute('type') === 'password' ? 'text' : 'password';
+                els.apiKey.setAttribute('type', type);
+                els.eyeIcon.classList.toggle('fa-eye');
+                els.eyeIcon.classList.toggle('fa-eye-slash');
+            });
+
+            // モデルリスト手動取得アクション
+            els.btnFetchModels.addEventListener('click', () => fetchModelsFromAPI(false));
+
+            // リアルタイムフィルタリング検索
+            els.modelSearchInput.addEventListener('input', (e) => {
+                renderModelsDropdown(state.api.availableModels, e.target.value);
+            });
+
+            // 設定保存ボタン
+            els.btnSaveSettings.addEventListener('click', () => {
+                saveAPISettings();
+                closeSettingsModal();
+            });
+
+            els.btnDismissError.addEventListener('click', () => hideError());
+        }
+
+        /* ==========================================
+         * 11. アプリ起動 & 状態初期化
+         * ========================================== */
+        function resetApp() {
+            state.nodes = {};
+            state.connections = [];
+            state.selectedNodeId = null;
+            state.nodeCount = 0;
+            state.isGenerating = false;
+            state.purpose = "AIにお願いするための文章の続き考えてください。";
+            
+            els.nodesLayer.innerHTML = '';
+            els.svgConnections.innerHTML = '';
+            els.storyTextarea.value = '';
+            els.pathWordsList.innerHTML = `<span class="text-zinc-300 dark:text-zinc-600 italic">キャンバスのフレーズを選択してください</span>`;
+            els.displayPurpose.textContent = "AIにお願いするための文章の続き考えてください。";
+
+            els.initialInputOverlay.classList.remove('pointer-events-none', 'opacity-0');
+            els.initialWordInput.value = '';
+            els.initialWordInput.style.height = 'auto';
+            els.inputUnderline.className = "w-24 h-[1px] bg-zinc-300 dark:bg-zinc-700 mx-auto transition-all duration-500";
+            els.inputHint.textContent = "言葉を入力して [ Enter ] を押してください（Shift + Enterで改行）";
+            
+            toggleDrawer(false);
+            centerCanvas();
+            
+            if (!state.api.apiKey) {
+                els.apiKeyWarningBadge.classList.remove('hidden');
+                els.initialSetupPrompt.classList.remove('hidden');
+            }
+
+            setTimeout(() => {
+                els.initialWordInput.focus();
+            }, 300);
+        }
+
+        async function startExpander(firstWord) {
+            els.initialInputOverlay.classList.add('pointer-events-none', 'opacity-0');
+            
+            const rootId = createNode(firstWord, 0, 0, null);
+            
+            centerCanvas();
+            await selectNode(rootId);
+        }
+
+        window.onload = function () {
+            initCanvas();
+            initUIEvents();
+            loadToneSettings(); // トーン設定のロードとセレクトボックスの描画
+            loadAPISettings(); // アプリロード時に最新モデルリストを自動でAPI疎通取得
+            
+            setTimeout(() => {
+                els.initialWordInput.focus();
+            }, 500);
+        }
+    </script>
+</body>
+</html>
