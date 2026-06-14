@@ -904,14 +904,22 @@ ${purposeContext}
 2. 思考を深く刺激する魅力的なフレーズにすること。
 3. トーンの要望: ${tonePrompt}
 
-アウトプットは必ず以下のJSONスキーマに従ったJSON形式で出力してください。他の説明テキストやマークダウンは絶対に含めないでください。
+アウトプットは必ず以下のJSONスキーマに従ったJSONオブジェクト形式で出力してください。他の説明テキストやマークダウンは絶対に含めないでください。
 
             JSON出力フォーマット例:
-["フレーズ1", "フレーズ2", "フレーズ3", "フレーズ4"]`;
+{
+  "phrases": [
+    "フレーズ1",
+    "フレーズ2",
+    "フレーズ3",
+    "フレーズ4"
+  ]
+}`;
 
             try {
                 const rawResponse = await fetchAICompletion(userQuery);
-                return cleanAndParseJSON(rawResponse);
+                const parsed = cleanAndParseJSON(rawResponse);
+                return Array.isArray(parsed) ? parsed : (parsed.phrases || Object.values(parsed).find(v => Array.isArray(v)) || []);
             } catch (error) {
                 console.error("Error expanding:", error);
                 return [
