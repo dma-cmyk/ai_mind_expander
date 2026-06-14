@@ -1034,6 +1034,32 @@ ${purposeContext}${excludeContext}
             }
         }
 
+        async function fetchPurposeFromAI(firstWord) {
+            if (!state.api.apiKey || !state.api.selectedModel) {
+                return null;
+            }
+
+            const userQuery = `ユーザーが「${firstWord}」というテーマ・機能をシステムに入力しました。
+この機能・テーマを実現するシステムの「最終的な目的」や「ゴール」を推測し、短く簡潔に（20〜30文字程度で）表現してください。
+
+条件：
+1. 出力は必ず以下のJSONスキーマに従ったJSON形式で出力してください。他の説明テキストやマークダウンは絶対に含めないでください。
+
+フォーマット例:
+{
+  "purpose": "〇〇を自動化し、ユーザーの負担を減らす"
+}\`;
+
+            try {
+                const rawResponse = await fetchAICompletion(userQuery);
+                const parsed = cleanAndParseJSON(rawResponse);
+                return parsed.purpose || null;
+            } catch (error) {
+                console.error("Purpose fetch failed:", error);
+                return null;
+            }
+        }
+
         /* ==========================================
          * 6. キャンバス操作 (Pan & Zoom)
          * ========================================== */
@@ -2163,6 +2189,21 @@ ${purposeContext}${excludeContext}
             const rootId = createNode(firstWord, 0, 0, null);
             
             centerCanvas();
+
+            // 目的の自動抽出
+            if (state.api.apiKey) {
+                els.displayPurpose.textContent = "AIが目的を抽出中...";
+                fetchPurposeFromAI(firstWord).then(purpose => {
+                    if (purpose) {
+                        state.purpose = purpose;
+                        els.displayPurpose.textContent = state.purpose;
+                        updatePathDisplay();
+                    } else {
+                        els.displayPurpose.textContent = state.purpose; // 失敗時は元の値を表示
+                    }
+                });
+            }
+
             await selectNode(rootId);
         }
 
