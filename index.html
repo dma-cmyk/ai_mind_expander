@@ -97,9 +97,9 @@
         <div class="pointer-events-auto flex flex-col gap-1">
             <h1 class="text-sm font-semibold tracking-wider text-zinc-900 dark:text-zinc-100">AI Mind-Expander</h1>
             <!-- 目的の表示・即時編集エリア -->
-            <div class="flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500">
-                <span>Goal:</span>
-                <span id="displayPurpose" class="text-zinc-600 dark:text-zinc-400 font-medium underline underline-offset-4 decoration-zinc-300 dark:decoration-zinc-700 hover:text-zinc-950 dark:hover:text-zinc-200 cursor-pointer transition-colors max-w-[200px] md:max-w-[400px] truncate" title="クリックして目的を変更">
+            <div class="flex items-center gap-1.5 text-[11px] text-zinc-400 dark:text-zinc-500 min-w-0">
+                <span class="shrink-0">Goal:</span>
+                <span id="displayPurpose" class="inline-block align-bottom text-zinc-600 dark:text-zinc-400 font-medium underline underline-offset-4 decoration-zinc-300 dark:decoration-zinc-700 hover:text-zinc-950 dark:hover:text-zinc-200 cursor-pointer transition-colors max-w-[200px] md:max-w-[400px] truncate" title="クリックして目的を変更">
                     AIにお願いするための文章の続き考えてください。
                 </span>
             </div>
@@ -783,19 +783,19 @@
         /* ==========================================
          * 4. AIリクエスト送信（Gemini / OpenAI切り替え）
          * ========================================== */
-        async function fetchAICompletion(userQuery) {
+        async function fetchAICompletion(userQuery, silent = false) {
             const provider = state.api.provider;
             const key = state.api.apiKey;
             const model = state.api.selectedModel;
             const endpoint = state.api.endpoint;
 
             if (!key) {
-                showError("API設定が見つかりません。右上のスライダー設定から、APIキーを登録してください。");
+                if (!silent) showError("API設定が見つかりません。右上のスライダー設定から、APIキーを登録してください。");
                 throw new Error("API Key Missing");
             }
 
             if (!model) {
-                showError("使用するAIモデルが選択されていません。右上の設定からモデルを取得して選択してください。");
+                if (!silent) showError("使用するAIモデルが選択されていません。右上の設定からモデルを取得して選択してください。");
                 throw new Error("No Model Selected");
             }
 
@@ -867,7 +867,7 @@
 
                 } catch (error) {
                     if (attempt === maxAttempts) {
-                        showError(`AIリクエストに失敗しました。\nエラー: ${error.message}`);
+                        if (!silent) showError(`AIリクエストに失敗しました。\nエラー: ${error.message}`);
                         throw error;
                     }
                     const delay = baseDelay * Math.pow(2, attempt - 1);
@@ -1051,7 +1051,7 @@ ${purposeContext}${excludeContext}
 }\`;
 
             try {
-                const rawResponse = await fetchAICompletion(userQuery);
+                const rawResponse = await fetchAICompletion(userQuery, true);
                 const parsed = cleanAndParseJSON(rawResponse);
                 return parsed.purpose || null;
             } catch (error) {
