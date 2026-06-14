@@ -1183,24 +1183,10 @@ ${purposeContext}
             return id;
         }
 
-        function renderNodeElement(id) {
+        function getNodeActionsHtml(id) {
             const node = state.nodes[id];
-            const isRoot = !node.parentId;
-
-            const div = document.createElement('div');
-            div.id = id;
-            
-            div.className = `node-element group absolute transform -translate-x-1/2 -translate-y-1/2 select-none z-10 transition-all duration-300 ease-out fade-in`;
-            div.style.left = `${node.x}px`;
-            div.style.top = `${node.y}px`;
-
-            const rootStyle = "bg-zinc-900 border border-zinc-950 text-white dark:bg-zinc-100 dark:border-zinc-200 dark:text-zinc-900 font-medium px-6 py-4 rounded shadow-md tracking-wide cursor-pointer text-sm max-w-[320px] text-center";
-            const normalStyle = "bg-white border border-zinc-200 text-zinc-800 hover:border-zinc-500 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:hover:border-zinc-400 px-5 py-3.5 rounded shadow-sm hover:shadow-md transition-all text-xs cursor-pointer min-w-[200px] max-w-[320px] text-center font-normal leading-relaxed";
-            
-            div.className += ` ${isRoot ? rootStyle : normalStyle}`;
-
-            const actionsHtml = `
-                <div class="absolute -top-9 left-1/2 -translate-x-1/2 bg-zinc-950 text-zinc-100 rounded px-2.5 py-1 shadow-md flex items-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto z-20 text-[10px] font-sans">
+            return `
+                <div class="actions-bar absolute -top-9 left-1/2 -translate-x-1/2 bg-zinc-950 text-zinc-100 rounded px-2.5 py-1 shadow-md flex items-center gap-2.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto z-20 text-[10px] font-sans">
                     <button onclick="event.stopPropagation(); startEditNode('${id}')" title="この文章を編集" class="hover:text-zinc-400 transition-colors px-1 py-0.5">
                         <i class="fa-solid fa-pen"></i>
                     </button>
@@ -1219,9 +1205,35 @@ ${purposeContext}
                     ` : ''}
                 </div>
             `;
+        }
+
+        function updateNodeActions(id) {
+            const div = document.getElementById(id);
+            if (!div) return;
+            const existingBar = div.querySelector('.actions-bar');
+            if (existingBar) {
+                existingBar.outerHTML = getNodeActionsHtml(id);
+            }
+        }
+
+        function renderNodeElement(id) {
+            const node = state.nodes[id];
+            const isRoot = !node.parentId;
+
+            const div = document.createElement('div');
+            div.id = id;
+            
+            div.className = `node-element group absolute transform -translate-x-1/2 -translate-y-1/2 select-none z-10 transition-all duration-300 ease-out fade-in`;
+            div.style.left = `${node.x}px`;
+            div.style.top = `${node.y}px`;
+
+            const rootStyle = "bg-zinc-900 border border-zinc-950 text-white dark:bg-zinc-100 dark:border-zinc-200 dark:text-zinc-900 font-medium px-6 py-4 rounded shadow-md tracking-wide cursor-pointer text-sm max-w-[320px] text-center";
+            const normalStyle = "bg-white border border-zinc-200 text-zinc-800 hover:border-zinc-500 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-200 dark:hover:border-zinc-400 px-5 py-3.5 rounded shadow-sm hover:shadow-md transition-all text-xs cursor-pointer min-w-[200px] max-w-[320px] text-center font-normal leading-relaxed";
+            
+            div.className += ` ${isRoot ? rootStyle : normalStyle}`;
 
             div.innerHTML = `
-                ${actionsHtml}
+                ${getNodeActionsHtml(id)}
                 <div class="flex items-center justify-center gap-1">
                     <span class="node-text break-words w-full" id="text_${id}">${escapeHTML(node.text)}</span>
                 </div>
@@ -1379,6 +1391,7 @@ ${purposeContext}
                     });
                     childNode.children = [];
                     childNode.expanded = false;
+                    updateNodeActions(childId);
                 }
             });
 
@@ -1571,6 +1584,7 @@ ${purposeContext}
             } finally {
                 state.isGenerating = false;
                 drawConnections();
+                updateNodeActions(nodeId);
             }
         }
 
